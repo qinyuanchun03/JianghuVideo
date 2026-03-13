@@ -1,0 +1,5 @@
+{
+  "name": "江湖影院",
+  "description": "一个私人专用影视站点，通过接入支持苹果CMS的源来渲染页面的影片内容，支持在线播放。",
+  "requestFramePermissions": []
+}
