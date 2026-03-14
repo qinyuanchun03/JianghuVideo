@@ -16,6 +16,8 @@ export interface MacCMSVideo {
   vod_director?: string;
   vod_class?: string;
   vod_score?: string;
+  source_id?: string;
+  source_name?: string;
 }
 
 export interface MacCMSCategory {

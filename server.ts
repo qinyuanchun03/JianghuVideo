@@ -6,10 +6,46 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Proxy API route to bypass CORS
+  // Proxy API route to bypass CORS and support LunaTV-config style features
   app.get("/api/proxy", async (req, res) => {
     try {
+      const format = req.query.format as string;
+      const source = req.query.source as string || 'full';
       const targetUrl = req.query.url as string;
+
+      // Handle source fetching (LunaTV-config style)
+      if (format !== undefined) {
+        const sourceFiles: Record<string, string> = {
+          'full': 'LunaTV-config.json',
+          'jin18': 'jin18.json',
+          'jingjian': 'jingjian.json'
+        };
+        const fileName = sourceFiles[source] || sourceFiles['full'];
+        const githubUrl = `https://raw.githubusercontent.com/qinyuanchun03/LunaTV-config/main/${fileName}`;
+        
+        const response = await fetch(githubUrl);
+        if (!response.ok) throw new Error(`Failed to fetch source from GitHub: ${response.status}`);
+        
+        const config = await response.json();
+        
+        // If format is 1 (proxy), we prefix the API URLs with our local proxy
+        if (format === '1' || format === 'proxy') {
+          const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+          const proxyPrefix = `${appUrl}/api/proxy?url=`;
+          
+          if (config.api_site) {
+            Object.keys(config.api_site).forEach(key => {
+              const site = config.api_site[key];
+              if (site.api) {
+                site.api = `${proxyPrefix}${encodeURIComponent(site.api)}`;
+              }
+            });
+          }
+        }
+        
+        return res.json(config);
+      }
+
       if (!targetUrl) {
         return res.status(400).json({ error: "Missing url parameter" });
       }
@@ -18,7 +54,7 @@ async function startServer() {
       
       // Forward other query parameters
       Object.entries(req.query).forEach(([key, value]) => {
-        if (key !== 'url' && typeof value === 'string') {
+        if (key !== 'url' && key !== 'format' && key !== 'source' && typeof value === 'string') {
           url.searchParams.append(key, value);
         }
       });

@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Save, Info, Rss, Shield, PlayCircle, Database, Trash2, Download, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings as SettingsIcon, Save, Info, Rss, Shield, PlayCircle, Database, Trash2, Download, Plus, RefreshCw } from 'lucide-react';
 import { 
   ConfigItem,
   getSources, setSources, getActiveSourceId, setActiveSourceId,
   getCorsProxies, setCorsProxies, getActiveCorsId, setActiveCorsId,
-  getPlayers, setPlayers, getActivePlayerId, setActivePlayerId
+  getPlayers, setPlayers, getActivePlayerId, setActivePlayerId,
+  syncFromLunaTV
 } from '../services/maccms';
 import { useNavigate } from 'react-router-dom';
 
@@ -126,7 +127,9 @@ export default function Settings() {
   const [playersState, setPlayersState] = useState<ConfigItem[]>([]);
   const [activePlayerIdState, setActivePlayerIdState] = useState('');
   
+  const [syncing, setSyncing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const isInitialMount = useRef(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -140,20 +143,40 @@ export default function Settings() {
     setActivePlayerIdState(getActivePlayerId());
   }, []);
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  // Auto-save effect
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
     setSources(sourcesState);
     setActiveSourceId(activeSourceIdState);
-
     setCorsProxies(corsProxiesState);
     setActiveCorsId(activeCorsIdState);
-
     setPlayers(playersState);
     setActivePlayerId(activePlayerIdState);
-    
+
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const timer = setTimeout(() => setSaved(false), 2000);
+    return () => clearTimeout(timer);
+  }, [sourcesState, activeSourceIdState, corsProxiesState, activeCorsIdState, playersState, activePlayerIdState]);
+
+  const handleSync = async (type: 'full' | 'jin18' | 'jingjian') => {
+    if (!window.confirm(`确定要从 LunaTV 同步订阅源吗？这将添加约 ${type === 'full' ? '80+' : '30+'} 个新源。`)) return;
+    setSyncing(true);
+    try {
+      const newSources = await syncFromLunaTV(type);
+      // Merge with existing, avoiding duplicates by ID
+      const existingIds = new Set(sourcesState.map(s => s.id));
+      const filteredNew = newSources.filter(s => !existingIds.has(s.id));
+      setSourcesState([...sourcesState, ...filteredNew]);
+      alert(`成功同步 ${filteredNew.length} 个新订阅源！`);
+    } catch (e) {
+      alert('同步失败，请检查网络连接');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleClearData = () => {
@@ -212,32 +235,62 @@ export default function Settings() {
         {/* Content */}
         <div className="flex-1">
           <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 md:p-8 backdrop-blur-xl min-h-[500px]">
-            <form onSubmit={handleSave} className="space-y-6 h-full flex flex-col">
+            <div className="space-y-6 h-full flex flex-col">
               
               {/* Tab Content */}
               <div className="flex-1">
                 {activeTab === 'source' && (
-                  <ConfigSection
-                    title="订阅源设置"
-                    items={sourcesState}
-                    activeId={activeSourceIdState}
-                    onSetActive={setActiveSourceIdState}
-                    onAdd={(name, url) => setSourcesState([...sourcesState, { id: Date.now().toString(), name, url }])}
-                    onDelete={(id) => {
-                      setSourcesState(sourcesState.filter(s => s.id !== id));
-                      if (activeSourceIdState === id) setActiveSourceIdState('default');
-                    }}
-                    namePlaceholder="例如: 卧龙资源"
-                    urlPlaceholder="例如: https://wolongzy.net/api.php/provide/vod/at/json"
-                    description={
-                      <div className="flex items-start gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-200/80 text-sm">
-                        <Info className="w-5 h-5 shrink-0 text-rose-400" />
-                        <p>
-                          请确保填写的接口支持 JSON 格式输出。通常接口路径以 <code>/api.php/provide/vod/</code> 结尾。推荐使用 <code>/at/json</code> 强制输出 JSON。
-                        </p>
+                  <div className="space-y-6 flex flex-col h-full">
+                    <div className="flex flex-wrap gap-3 p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl">
+                      <div className="w-full mb-1 flex items-center gap-2 text-indigo-400 font-medium text-sm">
+                        <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                        从 LunaTV 同步订阅源
                       </div>
-                    }
-                  />
+                      <button
+                        onClick={() => handleSync('full')}
+                        disabled={syncing}
+                        className="px-4 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 rounded-xl hover:bg-indigo-600/30 transition-colors disabled:opacity-50 text-sm font-medium"
+                      >
+                        同步全量 (80+)
+                      </button>
+                      <button
+                        onClick={() => handleSync('jin18')}
+                        disabled={syncing}
+                        className="px-4 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 rounded-xl hover:bg-emerald-600/30 transition-colors disabled:opacity-50 text-sm font-medium"
+                      >
+                        同步精简 (30+)
+                      </button>
+                      <button
+                        onClick={() => handleSync('jingjian')}
+                        disabled={syncing}
+                        className="px-4 py-2 bg-rose-600/20 text-rose-400 border border-rose-600/30 rounded-xl hover:bg-rose-600/30 transition-colors disabled:opacity-50 text-sm font-medium"
+                      >
+                        同步精简+ (40+)
+                      </button>
+                    </div>
+                    
+                    <ConfigSection
+                      title="订阅源设置"
+                      items={sourcesState}
+                      activeId={activeSourceIdState}
+                      onSetActive={setActiveSourceIdState}
+                      onAdd={(name, url) => setSourcesState([...sourcesState, { id: Date.now().toString(), name, url }])}
+                      onDelete={(id) => {
+                        setSourcesState(sourcesState.filter(s => s.id !== id));
+                        if (activeSourceIdState === id) setActiveSourceIdState('default');
+                      }}
+                      namePlaceholder="例如: 卧龙资源"
+                      urlPlaceholder="例如: https://wolongzy.net/api.php/provide/vod/at/json"
+                      description={
+                        <div className="flex items-start gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-200/80 text-sm">
+                          <Info className="w-5 h-5 shrink-0 text-rose-400" />
+                          <p>
+                            请确保填写的接口支持 JSON 格式输出。通常接口路径以 <code>/api.php/provide/vod/</code> 结尾。推荐使用 <code>/at/json</code> 强制输出 JSON。
+                          </p>
+                        </div>
+                      }
+                    />
+                  </div>
                 )}
 
                 {activeTab === 'cors' && (
@@ -325,14 +378,16 @@ export default function Settings() {
 
               {/* Footer Actions */}
               <div className="flex items-center gap-4 pt-6 mt-6 border-t border-white/5">
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-xl font-medium transition-colors"
-                >
-                  <Save className="w-5 h-5" />
-                  保存设置
-                </button>
-                {saved && <span className="text-emerald-400 text-sm font-medium animate-in fade-in">已保存！</span>}
+                <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                  {saved ? (
+                    <span className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      设置已自动保存
+                    </span>
+                  ) : (
+                    <span className="text-zinc-500 font-normal">所有更改将实时保存</span>
+                  )}
+                </div>
                 
                 <div className="flex-1"></div>
 
@@ -344,7 +399,7 @@ export default function Settings() {
                   返回首页
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       </div>

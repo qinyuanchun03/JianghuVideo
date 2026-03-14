@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, PlayCircle, Loader2, AlertCircle, Play, Star, ChevronRight } from 'lucide-react';
-import { getVideos, getCategories } from '../services/maccms';
+import { Link, useSearchParams } from 'react-router-dom';
+import { PlayCircle, Loader2, AlertCircle, Play, Star, ChevronRight } from 'lucide-react';
+import { getVideos, getCategories, searchAllSources } from '../services/maccms';
 import { MacCMSVideo, MacCMSCategory } from '../types';
 
 const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
   <Link 
-    to={`/video/${video.vod_id}`}
+    to={`/video/${video.vod_id}${video.source_id ? `?source=${video.source_id}` : ''}`}
     className="group relative flex flex-col gap-3 w-full"
   >
     <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5">
@@ -25,6 +25,11 @@ const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
           {video.vod_remarks}
         </div>
       )}
+      {video.source_name && (
+        <div className="absolute top-2 left-2 bg-rose-600/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-md font-medium">
+          {video.source_name}
+        </div>
+      )}
     </div>
     <div>
       <h3 className="text-white font-medium text-sm md:text-base line-clamp-1 group-hover:text-rose-400 transition-colors">
@@ -38,9 +43,11 @@ const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
 );
 
 export default function Home() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get('q') || '';
+  
   const [categories, setCategories] = useState<MacCMSCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<number | undefined>();
   
   // Home Mode State (Carousel)
@@ -104,34 +111,52 @@ export default function Home() {
     let isMounted = true;
     setGridLoading(true);
 
-    getVideos(page, activeCategory, searchQuery)
-      .then(res => {
-        if (!isMounted) return;
-        if (page === 1) {
-          setGridVideos(res.list || []);
-        } else {
-          setGridVideos(prev => [...prev, ...(res.list || [])]);
-        }
-        setHasMore(res.page < res.pagecount);
-      })
-      .catch(err => {
-        if (!isMounted) setError(err.message);
-      })
-      .finally(() => {
-        if (isMounted) setGridLoading(false);
-      });
+    if (searchQuery) {
+      searchAllSources(searchQuery)
+        .then(results => {
+          if (!isMounted) return;
+          const allVideos = results.flatMap(r => r.list);
+          setGridVideos(allVideos);
+          setHasMore(false);
+        })
+        .catch(err => {
+          if (!isMounted) setError(err.message);
+        })
+        .finally(() => {
+          if (isMounted) setGridLoading(false);
+        });
+    } else {
+      getVideos(page, activeCategory)
+        .then(res => {
+          if (!isMounted) return;
+          if (page === 1) {
+            setGridVideos(res.list || []);
+          } else {
+            setGridVideos(prev => [...prev, ...(res.list || [])]);
+          }
+          setHasMore(res.page < res.pagecount);
+        })
+        .catch(err => {
+          if (!isMounted) setError(err.message);
+        })
+        .finally(() => {
+          if (isMounted) setGridLoading(false);
+        });
+    }
 
     return () => { isMounted = false; };
   }, [page, activeCategory, searchQuery, isHomeMode]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Reset page when search query or category changes
+  useEffect(() => {
     setPage(1);
-  };
+  }, [searchQuery, activeCategory]);
 
   const handleCategoryClick = (id?: number) => {
     setActiveCategory(id);
-    setSearchQuery('');
+    if (searchQuery) {
+      setSearchParams({});
+    }
     setPage(1);
   };
 
@@ -164,20 +189,6 @@ export default function Home() {
       )}
 
       <div className={`max-w-7xl mx-auto px-4 ${!isHomeMode ? 'pt-24' : ''}`}>
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="w-full relative group mb-8">
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <Search className="w-5 h-5 text-zinc-500 group-focus-within:text-rose-500 transition-colors" />
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索电影、电视剧、动漫..."
-            className="w-full bg-zinc-900/80 border border-white/10 rounded-full py-4 pl-12 pr-6 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500 backdrop-blur-xl transition-all shadow-xl"
-          />
-        </form>
-
         {/* Categories */}
         {categories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-6 scrollbar-hide snap-x mb-4">
@@ -238,7 +249,7 @@ export default function Home() {
                   </div>
                   <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
                     {(vids as MacCMSVideo[]).map(video => (
-                      <div key={video.vod_id} className="snap-start shrink-0 w-36 md:w-48">
+                      <div key={`${video.source_id || 'default'}-${video.vod_id}`} className="snap-start shrink-0 w-36 md:w-48">
                         <VideoCard video={video} />
                       </div>
                     ))}
@@ -250,9 +261,16 @@ export default function Home() {
         ) : (
           /* Grid Mode */
           <>
+            {searchQuery && (
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-white">
+                  搜索结果: <span className="text-rose-500">{searchQuery}</span>
+                </h2>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
               {gridVideos.map((video) => (
-                <VideoCard key={video.vod_id} video={video} />
+                <VideoCard key={`${video.source_id || 'default'}-${video.vod_id}`} video={video} />
               ))}
             </div>
 

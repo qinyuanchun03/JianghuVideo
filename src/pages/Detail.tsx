@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star } from 'lucide-react';
-import { getVideoDetail, parsePlayUrls } from '../services/maccms';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star, Search, ChevronRight } from 'lucide-react';
+import { getVideoDetail, parsePlayUrls, searchAllSources } from '../services/maccms';
 import { MacCMSVideo, PlaySource, Episode } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const sourceId = searchParams.get('source') || undefined;
+  
   const navigate = useNavigate();
   const [video, setVideo] = useState<MacCMSVideo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -15,12 +18,17 @@ export default function Detail() {
   const [sources, setSources] = useState<PlaySource[]>([]);
   const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const [activeEpisode, setActiveEpisode] = useState<Episode | null>(null);
+  const [activeTab, setActiveTab] = useState<'episodes' | 'sources'>('episodes');
+  
+  const [alternativeSources, setAlternativeSources] = useState<{ sourceId: string; sourceName: string; list: MacCMSVideo[], ping?: number }[]>([]);
+  const [searchingAlternatives, setSearchingAlternatives] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     
     setLoading(true);
-    getVideoDetail(Number(id))
+    setAlternativeSources([]);
+    getVideoDetail(Number(id), sourceId)
       .then(data => {
         setVideo(data);
         const parsedSources = parsePlayUrls(data.vod_play_from, data.vod_play_url);
@@ -29,10 +37,24 @@ export default function Detail() {
         if (parsedSources.length > 0 && parsedSources[0].episodes.length > 0) {
           setActiveEpisode(parsedSources[0].episodes[0]);
         }
+        
+        // Search for alternative sources
+        setSearchingAlternatives(true);
+        searchAllSources(data.vod_name)
+          .then(results => {
+            // Filter out the current source and sources that don't have an exact match
+            const alternatives = results.filter(r => 
+              r.sourceId !== data.source_id && 
+              r.list.some(v => v.vod_name === data.vod_name)
+            );
+            setAlternativeSources(alternatives);
+          })
+          .catch(console.error)
+          .finally(() => setSearchingAlternatives(false));
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, sourceId]);
 
   if (loading) {
     return (
@@ -95,12 +117,39 @@ export default function Detail() {
               </div>
             )}
 
-            {/* Source Selection */}
-            {sources.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-                  <h3 className="text-lg font-medium text-white">播放源</h3>
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+            {/* Tabs */}
+            <div className="flex gap-6 border-b border-white/10 mb-6">
+              <button
+                onClick={() => setActiveTab('episodes')}
+                className={`pb-3 text-lg font-medium transition-colors relative ${
+                  activeTab === 'episodes' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                选集
+                {activeTab === 'episodes' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('sources')}
+                className={`pb-3 text-lg font-medium transition-colors relative flex items-center gap-2 ${
+                  activeTab === 'sources' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                换源
+                {searchingAlternatives && <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />}
+                {activeTab === 'sources' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full" />
+                )}
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'episodes' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                {/* Source Selection (Internal lines) */}
+                {sources.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
                     {sources.map((source, idx) => (
                       <button
                         key={idx}
@@ -118,7 +167,7 @@ export default function Detail() {
                       </button>
                     ))}
                   </div>
-                </div>
+                )}
 
                 {/* Episode Grid */}
                 {activeSource && (
@@ -139,6 +188,66 @@ export default function Detail() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'sources' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-zinc-400">
+                    {searchingAlternatives ? '正在全网测速寻源...' : '已按测速结果排序，推荐使用最快的源'}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Current Source */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                      <span className="text-rose-400 font-medium text-sm">当前: {video.source_name || '默认源'}</span>
+                    </div>
+                    <span className="text-xs text-rose-500/70">使用中</span>
+                  </div>
+
+                  {/* Alternative Sources */}
+                  {!searchingAlternatives && alternativeSources.length === 0 ? (
+                    <div className="col-span-1 sm:col-span-2 p-4 text-center text-zinc-500 text-sm bg-zinc-900/50 rounded-xl border border-white/5">
+                      暂无其他可用来源
+                    </div>
+                  ) : (
+                    alternativeSources.map((alt) => {
+                      const matchedVideo = alt.list.find(v => v.vod_name === video.vod_name);
+                      if (!matchedVideo) return null;
+                      
+                      let pingColor = 'text-emerald-400';
+                      if (alt.ping && alt.ping > 1000) pingColor = 'text-amber-400';
+                      if (alt.ping && alt.ping > 3000) pingColor = 'text-rose-400';
+
+                      return (
+                        <Link
+                          key={alt.sourceId}
+                          to={`/video/${matchedVideo.vod_id}?source=${alt.sourceId}`}
+                          className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-white/5 hover:bg-zinc-800 hover:border-white/10 transition-all group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Search className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
+                            <span className="text-zinc-300 group-hover:text-white text-sm font-medium transition-colors">
+                              {alt.sourceName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {alt.ping !== undefined && (
+                              <span className={`text-xs font-mono ${pingColor}`}>
+                                {alt.ping}ms
+                              </span>
+                            )}
+                            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />
+                          </div>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { MacCMSResponse, PlaySource } from '../types';
+import { MacCMSResponse, PlaySource, MacCMSVideo } from '../types';
 
 export interface ConfigItem {
   id: string;
@@ -7,7 +7,61 @@ export interface ConfigItem {
 }
 
 const DEFAULT_SOURCES: ConfigItem[] = [
-  { id: 'default', name: 'ikunzy (默认)', url: 'https://ikunzyapi.com/api.php/provide/vod/from/ikm3u8/at/json' }
+  { id: 'iqiyizyapi', name: '🎬-爱奇艺-', url: 'https://iqiyizyapi.com/api.php/provide/vod/at/json' },
+  { id: 'dbzy', name: '🎬豆瓣资源', url: 'https://caiji.dbzy5.com/api.php/provide/vod/at/json' },
+  { id: 'tyyszy', name: '🎬天涯影视', url: 'https://tyyszy.com/api.php/provide/vod/at/json' },
+  { id: 'mtzyme', name: '🎬茅台资源', url: 'https://caiji.maotaizy.cc/api.php/provide/vod/at/json' },
+  { id: 'wolongzywcom', name: '🎬卧龙资源', url: 'https://wolongzyw.com/api.php/provide/vod/at/json' },
+  { id: 'ikunzycom', name: '🎬iKun资源', url: 'https://ikunzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'dyttzyapicom', name: '🎬电影天堂', url: 'http://caiji.dyttzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'wwwmaoyanzycom', name: '🎬猫眼资源', url: 'https://api.maoyanapi.top/api.php/provide/vod/at/json' },
+  { id: 'cjlzcaijicom', name: '🎬量子资源', url: 'https://cj.lzcaiji.com/api.php/provide/vod/at/json' },
+  { id: '360zycom', name: '🎬360 资源', url: 'https://360zy.com/api.php/provide/vod/at/json' },
+  { id: 'jszyapicom', name: '🎬极速资源', url: 'https://jszyapi.com/api.php/provide/vod/at/json' },
+  { id: 'wwwmoduzynet', name: '🎬魔都资源', url: 'https://www.mdzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'ffzyapicom', name: '🎬非凡资源', url: 'https://api.ffzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'bfzytv', name: '🎬暴风资源', url: 'https://bfzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'zuidaxyz', name: '🎬最大资源', url: 'https://api.zuidapi.com/api.php/provide/vod/at/json' },
+  { id: 'wujinzyme', name: '🎬无尽资源', url: 'https://api.wujinapi.me/api.php/provide/vod/at/json' },
+  { id: 'xinlangapicom', name: '🎬新浪资源', url: 'https://api.xinlangapi.com/xinlangapi.php/provide/vod/at/json' },
+  { id: 'apiwwzytv', name: '🎬旺旺资源', url: 'https://api.wwzy.tv/api.php/provide/vod/at/json' },
+  { id: 'wwwsubozycom', name: '🎬速播资源', url: 'https://subocaiji.com/api.php/provide/vod/at/json' },
+  { id: 'jinyingzycom', name: '🎬金鹰点播', url: 'https://jinyingzy.com/api.php/provide/vod/at/json' },
+  { id: 'p2100net', name: '🎬飘零资源', url: 'https://p2100.net/api.php/provide/vod/at/json' },
+  { id: 'apiukuapi88com', name: '🎬U酷影视', url: 'https://api.ukuapi88.com/api.php/provide/vod/at/json' },
+  { id: 'apiguangsuapicom', name: '🎬光速资源', url: 'https://api.guangsuapi.com/api.php/provide/vod/at/json' },
+  { id: 'wwwhongniuzycom', name: '🎬红牛资源', url: 'https://www.hongniuzy2.com/api.php/provide/vod/at/json' },
+  { id: 'caijimoduapicc', name: '🎬魔都动漫', url: 'https://caiji.moduapi.cc/api.php/provide/vod/at/json' },
+  { id: 'wwwryzywcom', name: '🎬如意资源', url: 'https://cj.rycjapi.com/api.php/provide/vod/at/json' },
+  { id: 'wwwhaohuazycom', name: '🎬豪华资源', url: 'https://hhzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'bdzy1com', name: '🎬百度云zy', url: 'https://api.apibdzy.com/api.php/provide/vod/at/json' },
+  { id: 'lovedannet', name: '🎬艾旦影视', url: 'https://lovedan.net/api.php/provide/vod/at/json' },
+  { id: '91mdme', name: '🔞麻豆视频', url: 'https://91md.me/api.php/provide/vod/at/json' },
+  { id: '91jpzywcom', name: '🔞91-精品-', url: 'https://91jpzyw.com/api.php/provide/vod/at/json' },
+  { id: 'lbapibycom', name: '🔞--AIvin-', url: 'http://lbapiby.com/api.php/provide/vod/at/json' },
+  { id: 'apibwzym3u8com', name: '🔞百万资源', url: 'https://api.bwzyz.com/api.php/provide/vod/at/json' },
+  { id: 'apisouavzyvip', name: '🔞souavZY', url: 'https://api.souavzy.vip/api.php/provide/vod/at/json' },
+  { id: '155zy2com', name: '🔞155-资源', url: 'https://155api.com/api.php/provide/vod/at/json' },
+  { id: 'apiyutu.com', name: '🔞玉兔资源', url: 'https://apiyutu.com/api.php/provide/vod/at/json' },
+  { id: 'fhapi9com', name: '🔞番号资源', url: 'http://fhapi9.com/api.php/provide/vod/at/json' },
+  { id: 'wwwjingpinxcom', name: '🔞精品资源', url: 'https://www.jingpinx.com/api.php/provide/vod/at/json' },
+  { id: 'apilsbzy1com', name: '🔞-老色逼-', url: 'https://apilsbzy1.com/api.php/provide/vod/at/json' },
+  { id: 'thzy8me', name: '🔞桃花资源', url: 'https://thzy1.me/api.php/provide/vod/at/json' },
+  { id: 'wwwyyzywcjcom', name: '🔞优优资源', url: 'https://www.yyzywcj.com/api.php/provide/vod/at/json' },
+  { id: 'xiaojizylive', name: '🔞小鸡资源', url: 'https://api.xiaojizy.live/provide/vod/at/json' },
+  { id: 'hsckzyxyz', name: '🔞黄色仓库', url: 'https://hsckzy.xyz/api.php/provide/vod/at/json' },
+  { id: 'apidanaizicom', name: '🔞-大奶子-', url: 'https://apidanaizi.com/api.php/provide/vod/at/json' },
+  { id: 'jkunzyapicom', name: '🔞jkun资源', url: 'https://jkunzyapi.com/api.php/provide/vod/at/json' },
+  { id: 'lbapi9com', name: '🔞乐播资源', url: 'https://lbapi9.com/api.php/provide/vod/at/json' },
+  { id: 'Naixxzycom', name: '🔞奶香资源', url: 'https://Naixxzy.com/api.php/provide/vod/at/json' },
+  { id: 'slapibf', name: '🔞森林资源', url: 'https://beiyong.slapibf.com/api.php/provide/vod/at/json' },
+  { id: 'apilj', name: '🔞辣椒资源', url: 'https://apilj.com/api.php/provide/vod/at/json' },
+  { id: 'shayuapi', name: '🔞鲨鱼资源', url: 'https://shayuapi.com/api.php/provide/vod/at/json' },
+  { id: 'xzytv', name: '🔞-幸资源-', url: 'https://xzybb2.com/api.php/provide/vod/at/json' },
+  { id: 'doudouzy', name: '🔞豆豆资源', url: 'https://api.douapi.cc/api.php/provide/vod/at/json' },
+  { id: 'didizycom', name: '🔞滴滴资源', url: 'https://api.ddapi.cc/api.php/provide/vod/at/json' },
+  { id: 'heiliaozy', name: '🔞黑料资源', url: 'https://www.heiliaozyapi.com/api.php/provide/vod/at/json' },
+  { id: 'testSource', name: '空内容测试源', url: 'https://www.example.com/api.php/provide/vod/at/json' }
 ];
 
 const DEFAULT_CORS: ConfigItem[] = [
@@ -27,10 +81,14 @@ export const setSources = (sources: ConfigItem[]) => localStorage.setItem('maccm
 export const getActiveSourceId = () => localStorage.getItem('maccms_active_source_id') || 'default';
 export const setActiveSourceId = (id: string) => localStorage.setItem('maccms_active_source_id', id);
 
-export const getApiUrl = () => {
+export const getApiUrl = (sourceId?: string) => {
+  const sources = getSources();
+  if (sourceId) {
+    const source = sources.find(s => s.id === sourceId);
+    if (source) return source.url;
+  }
   const legacy = localStorage.getItem('maccms_api_url');
   if (legacy && !localStorage.getItem('maccms_sources')) return legacy;
-  const sources = getSources();
   const active = sources.find(s => s.id === getActiveSourceId()) || sources[0];
   return active ? active.url : DEFAULT_SOURCES[0].url;
 };
@@ -67,8 +125,8 @@ export const getCustomPlayerUrl = () => {
   return active ? active.url : '';
 };
 
-export async function fetchMacCMS(params: Record<string, string | number>): Promise<MacCMSResponse> {
-  let baseUrl = getApiUrl();
+export async function fetchMacCMS(params: Record<string, string | number>, sourceId?: string, signal?: AbortSignal): Promise<MacCMSResponse> {
+  let baseUrl = getApiUrl(sourceId);
   if (!baseUrl) {
     throw new Error('未配置 API 接口地址');
   }
@@ -78,16 +136,28 @@ export async function fetchMacCMS(params: Record<string, string | number>): Prom
     baseUrl = baseUrl.replace('/at/xml', '/at/json');
   }
 
-  const targetUrl = new URL(baseUrl);
+  // Extract actual API URL if it's wrapped in a proxy (prevents Cloudflare self-fetch loops)
+  let actualApiUrl = baseUrl;
+  let builtInProxy = '';
+  if (baseUrl.includes('?url=')) {
+    const parts = baseUrl.split('?url=');
+    builtInProxy = parts[0] + '?url=';
+    actualApiUrl = decodeURIComponent(parts[1]);
+  }
+
+  const targetUrl = new URL(actualApiUrl);
   Object.entries(params).forEach(([key, value]) => {
     targetUrl.searchParams.append(key, String(value));
   });
 
   // 使用用户提供的 CORS 代理
   const corsProxy = getCorsProxyUrl();
-  const proxyUrl = corsProxy ? `${corsProxy}${encodeURIComponent(targetUrl.toString())}` : targetUrl.toString();
+  
+  // If a global CORS proxy is set, use it. Otherwise, fallback to the built-in proxy if it existed.
+  const proxyToUse = corsProxy || builtInProxy;
+  const proxyUrl = proxyToUse ? `${proxyToUse}${encodeURIComponent(targetUrl.toString())}` : targetUrl.toString();
 
-  const response = await fetch(proxyUrl);
+  const response = await fetch(proxyUrl, { signal });
   if (!response.ok) {
     let errorMessage = `请求失败: ${response.status}`;
     try {
@@ -114,24 +184,97 @@ export async function fetchMacCMS(params: Record<string, string | number>): Prom
   return data;
 }
 
-export async function getCategories(): Promise<MacCMSResponse['class']> {
-  const data = await fetchMacCMS({ ac: 'list' });
+export async function getCategories(sourceId?: string): Promise<MacCMSResponse['class']> {
+  const data = await fetchMacCMS({ ac: 'list' }, sourceId);
   return data.class;
 }
 
-export async function getVideos(page = 1, type_id?: number, wd?: string): Promise<MacCMSResponse> {
+export async function getVideos(page = 1, type_id?: number, wd?: string, sourceId?: string): Promise<MacCMSResponse> {
   const params: Record<string, string | number> = { ac: 'detail', pg: page };
   if (type_id) params.t = type_id;
   if (wd) params.wd = wd;
-  return fetchMacCMS(params);
+  const data = await fetchMacCMS(params, sourceId);
+  
+  // Inject source info
+  const currentSourceId = sourceId || getActiveSourceId();
+  const sourceName = getSources().find(s => s.id === currentSourceId)?.name || '未知源';
+  
+  if (data.list) {
+    data.list = data.list.map(v => ({
+      ...v,
+      source_id: currentSourceId,
+      source_name: sourceName
+    }));
+  }
+  
+  return data;
 }
 
-export async function getVideoDetail(id: number): Promise<MacCMSResponse['list'][0]> {
-  const data = await fetchMacCMS({ ac: 'detail', ids: id });
+export async function getVideoDetail(id: number, sourceId?: string): Promise<MacCMSResponse['list'][0]> {
+  const data = await fetchMacCMS({ ac: 'detail', ids: id }, sourceId);
   if (!data.list || data.list.length === 0) {
     throw new Error('未找到该影片');
   }
-  return data.list[0];
+  
+  const currentSourceId = sourceId || getActiveSourceId();
+  const sourceName = getSources().find(s => s.id === currentSourceId)?.name || '未知源';
+  
+  return {
+    ...data.list[0],
+    source_id: currentSourceId,
+    source_name: sourceName
+  };
+}
+
+export async function syncFromLunaTV(sourceType: 'full' | 'jin18' | 'jingjian' = 'full'): Promise<ConfigItem[]> {
+  const response = await fetch(`/api/proxy?format=0&source=${sourceType}`);
+  if (!response.ok) throw new Error('同步失败');
+  
+  const config = await response.json();
+  if (!config.api_site) throw new Error('配置格式不正确');
+  
+  const newSources: ConfigItem[] = Object.entries(config.api_site).map(([key, site]: [string, any]) => ({
+    id: key.replace(/\./g, '_'),
+    name: site.name,
+    url: site.api + (site.api.includes('?') ? '&at=json' : '/at/json')
+  }));
+  
+  return newSources;
+}
+
+export async function searchAllSources(wd: string): Promise<{ sourceId: string; sourceName: string; list: MacCMSVideo[], ping: number }[]> {
+  const sources = getSources();
+  
+  const promises = sources.map(async (source) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      
+      const startTime = Date.now();
+      const res = await fetchMacCMS({ ac: 'detail', wd }, source.id, controller.signal);
+      const ping = Date.now() - startTime;
+      clearTimeout(timeoutId);
+      
+      const list = (res.list || []).map(v => ({
+        ...v,
+        source_id: source.id,
+        source_name: source.name
+      }));
+      
+      return {
+        sourceId: source.id,
+        sourceName: source.name,
+        list,
+        ping
+      };
+    } catch (e) {
+      // Ignore errors for individual sources to not break the whole search
+      return { sourceId: source.id, sourceName: source.name, list: [], ping: 9999 };
+    }
+  });
+
+  const results = await Promise.all(promises);
+  return results.filter(r => r.list.length > 0).sort((a, b) => a.ping - b.ping);
 }
 
 export function parsePlayUrls(playFrom: string, playUrl: string): PlaySource[] {
