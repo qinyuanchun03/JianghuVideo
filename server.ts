@@ -8,10 +8,12 @@ async function startServer() {
 
   // Proxy API route to bypass CORS and support LunaTV-config style features
   app.get("/api/proxy", async (req, res) => {
+    const targetUrl = req.query.url as string;
+    console.log(`[Proxy] Request for: ${targetUrl}`);
+    
     try {
       const format = req.query.format as string;
       const source = req.query.source as string || 'full';
-      const targetUrl = req.query.url as string;
 
       // Handle source fetching (LunaTV-config style)
       if (format !== undefined) {
@@ -55,29 +57,53 @@ async function startServer() {
       // Forward other query parameters
       Object.entries(req.query).forEach(([key, value]) => {
         if (key !== 'url' && key !== 'format' && key !== 'source' && typeof value === 'string') {
-          url.searchParams.append(key, value);
+          // Only append if it's not already in the target URL
+          if (!url.searchParams.has(key)) {
+            url.searchParams.append(key, value);
+          }
         }
       });
 
-      const response = await fetch(url.toString(), {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Upstream returned ${response.status}`);
-      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
 
-      const text = await response.text();
-      let data;
       try {
-        data = JSON.parse(text);
-      } catch (e) {
-        return res.status(500).json({ error: "Upstream API did not return valid JSON. Please check if the API URL is correct and supports JSON output.", raw: text.substring(0, 200) });
+        const response = await fetch(url.toString(), {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          console.error(`[Proxy] Upstream error: ${response.status} for ${url.toString()}`);
+          return res.status(response.status).json({ error: `Upstream returned ${response.status}` });
+        }
+
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error(`[Proxy] JSON parse error for ${url.toString()}`);
+          return res.status(500).json({ 
+            error: "Upstream API did not return valid JSON.", 
+            details: "Please ensure the API supports JSON output (e.g., ends with /at/json)",
+            raw: text.substring(0, 200) 
+          });
+        }
+        res.json(data);
+      } catch (e: any) {
+        clearTimeout(timeout);
+        if (e.name === 'AbortError') {
+          return res.status(504).json({ error: "Upstream request timed out (15s)" });
+        }
+        throw e;
       }
-      res.json(data);
     } catch (error: any) {
       console.error("Proxy error:", error);
       res.status(500).json({ error: error.message || "Proxy request failed" });

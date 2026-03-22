@@ -7,6 +7,7 @@ import { MacCMSVideo, MacCMSCategory } from '../types';
 const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
   <Link 
     to={`/video/${video.vod_id}${video.source_id ? `?source=${video.source_id}` : ''}`}
+    target="_blank"
     className="group relative flex flex-col gap-3 w-full"
   >
     <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5">
@@ -49,6 +50,7 @@ export default function Home() {
   const [categories, setCategories] = useState<MacCMSCategory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<number | undefined>();
+  const [settingsVersion, setSettingsVersion] = useState(0);
   
   // Home Mode State (Carousel)
   const [groupedVideos, setGroupedVideos] = useState<Record<string, MacCMSVideo[]>>({});
@@ -64,12 +66,20 @@ export default function Home() {
   const isHomeMode = !activeCategory && !searchQuery;
 
   useEffect(() => {
+    const handleSettingsChange = () => {
+      setSettingsVersion(v => v + 1);
+    };
+    window.addEventListener('maccms_settings_changed', handleSettingsChange);
+    return () => window.removeEventListener('maccms_settings_changed', handleSettingsChange);
+  }, []);
+
+  useEffect(() => {
     getCategories()
       .then(cats => {
         if (cats) setCategories(cats);
       })
       .catch(console.error);
-  }, []);
+  }, [settingsVersion]);
 
   // Fetch for Home Mode
   useEffect(() => {
@@ -103,7 +113,7 @@ export default function Home() {
       });
 
     return () => { isMounted = false; };
-  }, [isHomeMode]);
+  }, [isHomeMode, settingsVersion]);
 
   // Fetch for Grid Mode
   useEffect(() => {
@@ -145,7 +155,7 @@ export default function Home() {
     }
 
     return () => { isMounted = false; };
-  }, [page, activeCategory, searchQuery, isHomeMode]);
+  }, [page, activeCategory, searchQuery, isHomeMode, settingsVersion]);
 
   // Reset page when search query or category changes
   useEffect(() => {
@@ -180,7 +190,11 @@ export default function Home() {
             </div>
             <p className="text-zinc-300 text-sm md:text-base line-clamp-3 mb-8 max-w-2xl drop-shadow" dangerouslySetInnerHTML={{ __html: featuredVideo.vod_content?.replace(/<[^>]+>/g, '') || '' }} />
             <div className="flex gap-4">
-              <Link to={`/video/${featuredVideo.vod_id}`} className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-zinc-200 transition-colors">
+              <Link 
+                to={`/video/${featuredVideo.vod_id}`} 
+                target="_blank"
+                className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-zinc-200 transition-colors"
+              >
                 <Play className="w-5 h-5 fill-current" /> 立即播放
               </Link>
             </div>

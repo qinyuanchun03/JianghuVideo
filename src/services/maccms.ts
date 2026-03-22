@@ -7,11 +7,11 @@ export interface ConfigItem {
 }
 
 const DEFAULT_SOURCES: ConfigItem[] = [
-  { id: 'iqiyizyapi', name: '🎬-爱奇艺-', url: 'https://iqiyizyapi.com/api.php/provide/vod/at/json' },
   { id: 'dbzy', name: '🎬豆瓣资源', url: 'https://caiji.dbzy5.com/api.php/provide/vod/at/json' },
+  { id: 'wolongzywcom', name: '🎬卧龙资源', url: 'https://wolongzyw.com/api.php/provide/vod/at/json' },
+  { id: 'iqiyizyapi', name: '🎬-爱奇艺-', url: 'https://iqiyizyapi.com/api.php/provide/vod/at/json' },
   { id: 'tyyszy', name: '🎬天涯影视', url: 'https://tyyszy.com/api.php/provide/vod/at/json' },
   { id: 'mtzyme', name: '🎬茅台资源', url: 'https://caiji.maotaizy.cc/api.php/provide/vod/at/json' },
-  { id: 'wolongzywcom', name: '🎬卧龙资源', url: 'https://wolongzyw.com/api.php/provide/vod/at/json' },
   { id: 'ikunzycom', name: '🎬iKun资源', url: 'https://ikunzyapi.com/api.php/provide/vod/at/json' },
   { id: 'dyttzyapicom', name: '🎬电影天堂', url: 'http://caiji.dyttzyapi.com/api.php/provide/vod/at/json' },
   { id: 'wwwmaoyanzycom', name: '🎬猫眼资源', url: 'https://api.maoyanapi.top/api.php/provide/vod/at/json' },
@@ -65,7 +65,8 @@ const DEFAULT_SOURCES: ConfigItem[] = [
 ];
 
 const DEFAULT_CORS: ConfigItem[] = [
-  { id: 'default', name: 'Takao CORS (默认)', url: 'https://cros.takaosakuma.dpdns.org/?url=' },
+  { id: 'default', name: '内置代理 (推荐)', url: '/api/proxy?url=' },
+  { id: 'takao', name: 'Takao CORS', url: 'https://cros.takaosakuma.dpdns.org/?url=' },
   { id: 'none', name: '直连 (无代理)', url: '' }
 ];
 
@@ -75,31 +76,61 @@ const DEFAULT_PLAYERS: ConfigItem[] = [
 
 export const getSources = (): ConfigItem[] => {
   const saved = localStorage.getItem('maccms_sources');
-  return saved ? JSON.parse(saved) : DEFAULT_SOURCES;
+  // Return empty array if no custom sources saved, so Settings starts clean
+  return saved ? JSON.parse(saved) : [];
 };
-export const setSources = (sources: ConfigItem[]) => localStorage.setItem('maccms_sources', JSON.stringify(sources));
+
+export const getEffectiveSources = (): ConfigItem[] => {
+  const sources = getSources();
+  return sources.length > 0 ? sources : DEFAULT_SOURCES;
+};
+
+export const setSources = (sources: ConfigItem[]) => {
+  localStorage.setItem('maccms_sources', JSON.stringify(sources));
+  window.dispatchEvent(new Event('maccms_settings_changed'));
+};
 export const getActiveSourceId = () => localStorage.getItem('maccms_active_source_id') || 'default';
-export const setActiveSourceId = (id: string) => localStorage.setItem('maccms_active_source_id', id);
+export const setActiveSourceId = (id: string) => {
+  localStorage.setItem('maccms_active_source_id', id);
+  window.dispatchEvent(new Event('maccms_settings_changed'));
+};
 
 export const getApiUrl = (sourceId?: string) => {
-  const sources = getSources();
+  const sources = getEffectiveSources();
   if (sourceId) {
     const source = sources.find(s => s.id === sourceId);
     if (source) return source.url;
   }
-  const legacy = localStorage.getItem('maccms_api_url');
-  if (legacy && !localStorage.getItem('maccms_sources')) return legacy;
   const active = sources.find(s => s.id === getActiveSourceId()) || sources[0];
   return active ? active.url : DEFAULT_SOURCES[0].url;
 };
 
 export const getCorsProxies = (): ConfigItem[] => {
   const saved = localStorage.getItem('maccms_cors_proxies');
-  return saved ? JSON.parse(saved) : DEFAULT_CORS;
+  if (!saved) return DEFAULT_CORS;
+  
+  try {
+    const proxies: ConfigItem[] = JSON.parse(saved);
+    // Migration: update default proxy if it's using the old external URL
+    return proxies.map(p => {
+      if (p.id === 'default' && p.url.includes('takaosakuma.dpdns.org')) {
+        return DEFAULT_CORS[0];
+      }
+      return p;
+    });
+  } catch (e) {
+    return DEFAULT_CORS;
+  }
 };
-export const setCorsProxies = (proxies: ConfigItem[]) => localStorage.setItem('maccms_cors_proxies', JSON.stringify(proxies));
+export const setCorsProxies = (proxies: ConfigItem[]) => {
+  localStorage.setItem('maccms_cors_proxies', JSON.stringify(proxies));
+  window.dispatchEvent(new Event('maccms_settings_changed'));
+};
 export const getActiveCorsId = () => localStorage.getItem('maccms_active_cors_id') || 'default';
-export const setActiveCorsId = (id: string) => localStorage.setItem('maccms_active_cors_id', id);
+export const setActiveCorsId = (id: string) => {
+  localStorage.setItem('maccms_active_cors_id', id);
+  window.dispatchEvent(new Event('maccms_settings_changed'));
+};
 
 export const getCorsProxyUrl = () => {
   const legacy = localStorage.getItem('cors_proxy_url');
@@ -113,9 +144,15 @@ export const getPlayers = (): ConfigItem[] => {
   const saved = localStorage.getItem('maccms_players');
   return saved ? JSON.parse(saved) : DEFAULT_PLAYERS;
 };
-export const setPlayers = (players: ConfigItem[]) => localStorage.setItem('maccms_players', JSON.stringify(players));
+export const setPlayers = (players: ConfigItem[]) => {
+  localStorage.setItem('maccms_players', JSON.stringify(players));
+  window.dispatchEvent(new Event('maccms_settings_changed'));
+};
 export const getActivePlayerId = () => localStorage.getItem('maccms_active_player_id') || 'default';
-export const setActivePlayerId = (id: string) => localStorage.setItem('maccms_active_player_id', id);
+export const setActivePlayerId = (id: string) => {
+  localStorage.setItem('maccms_active_player_id', id);
+  window.dispatchEvent(new Event('maccms_settings_changed'));
+};
 
 export const getCustomPlayerUrl = () => {
   const legacy = localStorage.getItem('custom_player_url');
@@ -155,11 +192,62 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
   
   // If a global CORS proxy is set, use it. Otherwise, fallback to the built-in proxy if it existed.
   const proxyToUse = corsProxy || builtInProxy;
-  const proxyUrl = proxyToUse ? `${proxyToUse}${encodeURIComponent(targetUrl.toString())}` : targetUrl.toString();
+  
+  let proxyUrl = targetUrl.toString();
+  const fallbackProxies = [
+    'https://api.allorigins.win/raw?url=',
+    'https://thingproxy.freeboard.io/fetch/',
+    'https://api.codetabs.com/v1/proxy?quest='
+  ];
 
-  const response = await fetch(proxyUrl, { signal });
-  if (!response.ok) {
-    let errorMessage = `请求失败: ${response.status}`;
+  const getFullProxyUrl = (proxy: string, target: string) => {
+    if (!proxy) return target;
+    // For relative local proxy, we can use it directly or make it absolute
+    // Some browsers/environments prefer absolute URLs in certain contexts
+    if (proxy.startsWith('/')) {
+      const absoluteProxy = `${window.location.origin}${proxy}`;
+      return `${absoluteProxy}${encodeURIComponent(target)}`;
+    }
+    return `${proxy}${encodeURIComponent(target)}`;
+  };
+
+  let response;
+  let lastError: any;
+  const maxRetries = 1; // Try each proxy once
+
+  const tryFetch = async (currentProxy: string) => {
+    const finalUrl = getFullProxyUrl(currentProxy, targetUrl.toString());
+    console.log(`[Fetch] Trying proxy: ${currentProxy || 'Direct'} -> ${finalUrl}`);
+    return await fetch(finalUrl, { 
+      signal,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+  };
+
+  // 1. Try primary proxy (local or user-set)
+  try {
+    response = await tryFetch(proxyToUse);
+    if (!response.ok && response.status >= 500) throw new Error(`Server Error ${response.status}`);
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw e;
+    console.warn('Primary proxy failed, trying fallbacks...', e);
+    
+    // 2. Try fallback proxies
+    for (const fallback of fallbackProxies) {
+      try {
+        response = await tryFetch(fallback);
+        if (response.ok) break;
+      } catch (fe) {
+        console.warn(`Fallback ${fallback} failed`, fe);
+      }
+    }
+  }
+
+  if (!response || !response.ok) {
+    const status = response?.status || 'unknown';
+    let errorMessage = `网络连接失败 (${status}): 请检查网络或尝试切换代理`;
     try {
       const errorData = await response.json();
       if (errorData.error) {
@@ -184,6 +272,31 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
   return data;
 }
 
+export async function pingSource(source: ConfigItem, signal?: AbortSignal): Promise<number> {
+  const startTime = Date.now();
+  try {
+    // Just fetch categories as a lightweight ping
+    await fetchMacCMS({ ac: 'list' }, source.id, signal);
+    return Date.now() - startTime;
+  } catch (e) {
+    return 9999;
+  }
+}
+
+export async function findBestSource(): Promise<ConfigItem | null> {
+  const sources = getEffectiveSources();
+  const results = await Promise.all(sources.map(async (s) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const ping = await pingSource(s, controller.signal);
+    clearTimeout(timeoutId);
+    return { source: s, ping };
+  }));
+
+  const validResults = results.filter(r => r.ping < 9999).sort((a, b) => a.ping - b.ping);
+  return validResults.length > 0 ? validResults[0].source : null;
+}
+
 export async function getCategories(sourceId?: string): Promise<MacCMSResponse['class']> {
   const data = await fetchMacCMS({ ac: 'list' }, sourceId);
   return data.class;
@@ -197,7 +310,7 @@ export async function getVideos(page = 1, type_id?: number, wd?: string, sourceI
   
   // Inject source info
   const currentSourceId = sourceId || getActiveSourceId();
-  const sourceName = getSources().find(s => s.id === currentSourceId)?.name || '未知源';
+  const sourceName = getEffectiveSources().find(s => s.id === currentSourceId)?.name || '未知源';
   
   if (data.list) {
     data.list = data.list.map(v => ({
@@ -217,7 +330,7 @@ export async function getVideoDetail(id: number, sourceId?: string): Promise<Mac
   }
   
   const currentSourceId = sourceId || getActiveSourceId();
-  const sourceName = getSources().find(s => s.id === currentSourceId)?.name || '未知源';
+  const sourceName = getEffectiveSources().find(s => s.id === currentSourceId)?.name || '未知源';
   
   return {
     ...data.list[0],
@@ -243,7 +356,7 @@ export async function syncFromLunaTV(sourceType: 'full' | 'jin18' | 'jingjian' =
 }
 
 export async function searchAllSources(wd: string): Promise<{ sourceId: string; sourceName: string; list: MacCMSVideo[], ping: number }[]> {
-  const sources = getSources();
+  const sources = getEffectiveSources();
   
   const promises = sources.map(async (source) => {
     try {

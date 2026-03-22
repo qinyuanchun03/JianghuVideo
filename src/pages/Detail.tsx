@@ -99,7 +99,7 @@ export default function Detail() {
       <div className="max-w-7xl mx-auto px-4 pt-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Left Column: Player & Episodes */}
+          {/* Left Column: Player & Metadata */}
           <div className="lg:col-span-2 space-y-8">
             {/* Player */}
             {activeEpisode ? (
@@ -117,6 +117,86 @@ export default function Detail() {
               </div>
             )}
 
+            {/* Metadata (Moved from right) */}
+            <div className="space-y-6">
+              <div className="flex gap-6">
+                <div className="w-1/4 sm:w-1/5 shrink-0">
+                  <div className="aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl">
+                    <img 
+                      src={video.vod_pic} 
+                      alt={video.vod_name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">
+                    {video.vod_name}
+                  </h1>
+                  {video.vod_remarks && (
+                    <span className="inline-block bg-white/10 text-white text-xs px-2.5 py-1 rounded-md font-medium">
+                      {video.vod_remarks}
+                    </span>
+                  )}
+                  
+                  <div className="space-y-2 text-sm text-zinc-400 pt-2">
+                    {video.vod_score && video.vod_score !== '0.0' && (
+                      <div className="flex items-center gap-2 text-amber-400 font-medium">
+                        <Star className="w-4 h-4 fill-current" />
+                        {video.vod_score}
+                      </div>
+                    )}
+                    {video.vod_year && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        {video.vod_year}
+                      </div>
+                    )}
+                    {video.vod_area && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        {video.vod_area}
+                      </div>
+                    )}
+                    {video.type_name && (
+                      <div className="flex items-center gap-2">
+                        <Play className="w-4 h-4" />
+                        {video.vod_class || video.type_name}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-white/10">
+                {video.vod_director && (
+                  <div>
+                    <h4 className="text-zinc-500 text-sm mb-1">导演</h4>
+                    <p className="text-zinc-300 text-sm">{video.vod_director}</p>
+                  </div>
+                )}
+                {video.vod_actor && (
+                  <div>
+                    <h4 className="text-zinc-500 text-sm mb-1">主演</h4>
+                    <p className="text-zinc-300 text-sm leading-relaxed">{video.vod_actor}</p>
+                  </div>
+                )}
+                {video.vod_content && (
+                  <div>
+                    <h4 className="text-zinc-500 text-sm mb-2">剧情简介</h4>
+                    <div 
+                      className="text-zinc-400 text-sm leading-relaxed prose prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: video.vod_content }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Episodes & Sources (Moved from left) */}
+          <div className="space-y-6">
             {/* Tabs */}
             <div className="flex gap-6 border-b border-white/10 mb-6">
               <button
@@ -157,7 +237,7 @@ export default function Detail() {
                           setActiveSourceIndex(idx);
                           setActiveEpisode(source.episodes[0]);
                         }}
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                        className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                           activeSourceIndex === idx
                             ? 'bg-rose-600 text-white'
                             : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
@@ -171,12 +251,12 @@ export default function Detail() {
 
                 {/* Episode Grid */}
                 {activeSource && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3">
                     {activeSource.episodes.map((ep, idx) => (
                       <button
                         key={idx}
                         onClick={() => setActiveEpisode(ep)}
-                        className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all truncate ${
+                        className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all truncate ${
                           activeEpisode?.url === ep.url
                             ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50'
                             : 'bg-zinc-900 text-zinc-400 border border-white/5 hover:bg-zinc-800 hover:text-white'
@@ -194,24 +274,24 @@ export default function Detail() {
             {activeTab === 'sources' && (
               <div className="space-y-4 animate-in fade-in duration-300">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-xs text-zinc-400">
                     {searchingAlternatives ? '正在全网测速寻源...' : '已按测速结果排序，推荐使用最快的源'}
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {/* Current Source */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                      <span className="text-rose-400 font-medium text-sm">当前: {video.source_name || '默认源'}</span>
+                      <span className="text-rose-400 font-medium text-xs">当前: {video.source_name || '默认源'}</span>
                     </div>
-                    <span className="text-xs text-rose-500/70">使用中</span>
+                    <span className="text-[10px] text-rose-500/70">使用中</span>
                   </div>
 
                   {/* Alternative Sources */}
                   {!searchingAlternatives && alternativeSources.length === 0 ? (
-                    <div className="col-span-1 sm:col-span-2 p-4 text-center text-zinc-500 text-sm bg-zinc-900/50 rounded-xl border border-white/5">
+                    <div className="p-4 text-center text-zinc-500 text-xs bg-zinc-900/50 rounded-xl border border-white/5">
                       暂无其他可用来源
                     </div>
                   ) : (
@@ -231,13 +311,13 @@ export default function Detail() {
                         >
                           <div className="flex items-center gap-3">
                             <Search className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
-                            <span className="text-zinc-300 group-hover:text-white text-sm font-medium transition-colors">
+                            <span className="text-zinc-300 group-hover:text-white text-xs font-medium transition-colors">
                               {alt.sourceName}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             {alt.ping !== undefined && (
-                              <span className={`text-xs font-mono ${pingColor}`}>
+                              <span className={`text-[10px] font-mono ${pingColor}`}>
                                 {alt.ping}ms
                               </span>
                             )}
@@ -250,83 +330,6 @@ export default function Detail() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Right Column: Metadata */}
-          <div className="space-y-6">
-            <div className="flex gap-6">
-              <div className="w-1/3 shrink-0">
-                <div className="aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl">
-                  <img 
-                    src={video.vod_pic} 
-                    alt={video.vod_name}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
-              <div className="space-y-3">
-                <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">
-                  {video.vod_name}
-                </h1>
-                {video.vod_remarks && (
-                  <span className="inline-block bg-white/10 text-white text-xs px-2.5 py-1 rounded-md font-medium">
-                    {video.vod_remarks}
-                  </span>
-                )}
-                
-                <div className="space-y-2 text-sm text-zinc-400 pt-2">
-                  {video.vod_score && video.vod_score !== '0.0' && (
-                    <div className="flex items-center gap-2 text-amber-400 font-medium">
-                      <Star className="w-4 h-4 fill-current" />
-                      {video.vod_score}
-                    </div>
-                  )}
-                  {video.vod_year && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      {video.vod_year}
-                    </div>
-                  )}
-                  {video.vod_area && (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      {video.vod_area}
-                    </div>
-                  )}
-                  {video.type_name && (
-                    <div className="flex items-center gap-2">
-                      <Play className="w-4 h-4" />
-                      {video.vod_class || video.type_name}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-4 border-t border-white/10">
-              {video.vod_director && (
-                <div>
-                  <h4 className="text-zinc-500 text-sm mb-1">导演</h4>
-                  <p className="text-zinc-300 text-sm">{video.vod_director}</p>
-                </div>
-              )}
-              {video.vod_actor && (
-                <div>
-                  <h4 className="text-zinc-500 text-sm mb-1">主演</h4>
-                  <p className="text-zinc-300 text-sm leading-relaxed">{video.vod_actor}</p>
-                </div>
-              )}
-              {video.vod_content && (
-                <div>
-                  <h4 className="text-zinc-500 text-sm mb-2">剧情简介</h4>
-                  <div 
-                    className="text-zinc-400 text-sm leading-relaxed prose prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: video.vod_content }}
-                  />
-                </div>
-              )}
-            </div>
           </div>
 
         </div>
