@@ -7,6 +7,7 @@ import {
   getPlayers, setPlayers, getActivePlayerId, setActivePlayerId,
   syncFromLunaTV, findBestSource
 } from '../services/maccms';
+import PocketBaseTest from '../components/PocketBaseTest';
 
 type Tab = 'source' | 'cors' | 'player' | 'storage';
 
@@ -465,6 +466,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 </div>
                 
                 <div className="grid grid-cols-1 gap-4">
+                  <PocketBaseTest />
+                  
                   <div className="p-6 bg-zinc-900/40 border border-white/5 rounded-2xl space-y-4">
                     <div>
                       <h3 className="text-sm font-bold text-white">清除缓存</h3>

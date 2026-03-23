@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star, Search, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star, Search, ChevronRight, Heart } from 'lucide-react';
 import { getVideoDetail, parsePlayUrls, searchAllSources } from '../services/maccms';
 import { MacCMSVideo, PlaySource, Episode } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
+import { isFavorited, toggleFavorite, saveHistory, isUserLoggedIn } from '../services/pocketbase';
+import AuthModal from '../components/AuthModal';
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +24,9 @@ export default function Detail() {
   
   const [alternativeSources, setAlternativeSources] = useState<{ sourceId: string; sourceName: string; list: MacCMSVideo[], ping?: number }[]>([]);
   const [searchingAlternatives, setSearchingAlternatives] = useState(false);
+  
+  const [isFav, setIsFav] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -37,6 +42,9 @@ export default function Detail() {
         if (parsedSources.length > 0 && parsedSources[0].episodes.length > 0) {
           setActiveEpisode(parsedSources[0].episodes[0]);
         }
+
+        // Check favorite status
+        isFavorited(id).then(setIsFav);
         
         // Search for alternative sources
         setSearchingAlternatives(true);
@@ -87,29 +95,74 @@ export default function Detail() {
     );
   }
 
+  const handleToggleFavorite = async () => {
+    if (!isUserLoggedIn()) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!video || !id) return;
+    try {
+      const result = await toggleFavorite({
+        vod_id: id,
+        vod_name: video.vod_name,
+        vod_pic: video.vod_pic,
+        source_id: video.source_id || sourceId || 'default'
+      });
+      setIsFav(result);
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  useEffect(() => {
+    if (video && activeEpisode && isUserLoggedIn()) {
+      saveHistory({
+        vod_id: id!,
+        vod_name: video.vod_name,
+        vod_pic: video.vod_pic,
+        source_id: video.source_id || sourceId || 'default',
+        episode_name: activeEpisode.name,
+        progress: 0, // In a real app, you'd track this from the player
+        duration: 0
+      });
+    }
+  }, [video, activeEpisode]);
+
   const activeSource = sources[activeSourceIndex];
 
   return (
     <div className="min-h-screen pb-20">
       {/* Top Navigation */}
       <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 py-4">
-        <div className="max-w-7xl mx-auto flex items-center gap-4">
-          <button 
-            onClick={() => {
-              // If we have history within the app, go back, otherwise go to home
-              if (window.history.length > 2) {
-                navigate(-1);
-              } else {
-                navigate('/');
-              }
-            }}
-            className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-colors"
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <button 
+              onClick={() => {
+                if (window.history.length > 2) {
+                  navigate(-1);
+                } else {
+                  navigate('/');
+                }
+              }}
+              className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg font-medium text-white line-clamp-1">{video.vod_name}</h1>
+          </div>
+          <button
+            onClick={handleToggleFavorite}
+            className={`p-2 rounded-full transition-all active:scale-90 ${
+              isFav ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+            }`}
+            title={isFav ? '取消收藏' : '加入收藏'}
           >
-            <ArrowLeft className="w-6 h-6" />
+            <Heart className={`w-6 h-6 ${isFav ? 'fill-current' : ''}`} />
           </button>
-          <h1 className="text-lg font-medium text-white line-clamp-1">{video.vod_name}</h1>
         </div>
       </div>
+
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
 
       <div className="max-w-7xl mx-auto px-4 pt-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

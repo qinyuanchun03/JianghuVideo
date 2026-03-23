@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Film, Search, Loader2, X } from 'lucide-react';
+import { Settings as SettingsIcon, Film, Search, Loader2, X, User as UserIcon } from 'lucide-react';
 import Home from './pages/Home';
 import Detail from './pages/Detail';
 import Settings from './pages/Settings';
+import UserCenter from './pages/UserCenter';
 import { findBestSource, getActiveSourceId, setActiveSourceId } from './services/maccms';
+import { pb } from './services/pocketbase';
 
 function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const location = useLocation();
@@ -12,6 +14,13 @@ function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [searchParams] = useSearchParams();
   const [scrolled, setScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+  const [user, setUser] = useState(pb.authStore.model);
+
+  useEffect(() => {
+    const handleAuthChange = () => setUser(pb.authStore.model);
+    window.addEventListener('pb_auth_changed', handleAuthChange);
+    return () => window.removeEventListener('pb_auth_changed', handleAuthChange);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -74,6 +83,25 @@ function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
               </button>
             )}
           </form>
+          
+          <Link
+            to="/user"
+            className={`p-2 rounded-full transition-all ${
+              location.pathname === '/user' 
+                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
+                : 'text-zinc-400 hover:text-white hover:bg-white/10'
+            }`}
+            title="个人中心"
+          >
+            {user ? (
+              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
+                {(user.username || user.email || '?')[0].toUpperCase()}
+              </div>
+            ) : (
+              <UserIcon className="w-5 h-5" />
+            )}
+          </Link>
+
           <button 
             onClick={onOpenSettings}
             className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors shrink-0"
@@ -123,6 +151,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/video/:id" element={<Detail />} />
+            <Route path="/user" element={<UserCenter />} />
           </Routes>
         </main>
         {showSettings && <Settings onClose={() => setShowSettings(false)} />}
