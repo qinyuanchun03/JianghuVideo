@@ -65,8 +65,7 @@ const DEFAULT_SOURCES: ConfigItem[] = [
 ];
 
 const DEFAULT_CORS: ConfigItem[] = [
-  { id: 'default', name: '内置代理 (推荐)', url: '/api/proxy?url=' },
-  { id: 'takao', name: 'Takao CORS', url: 'https://cros.takaosakuma.dpdns.org/?url=' },
+  { id: 'default', name: '内置代理 (推荐)', url: 'https://video-api.250221.xyz/?url=' },
   { id: 'none', name: '直连 (无代理)', url: '' }
 ];
 
@@ -82,7 +81,19 @@ export const getSources = (): ConfigItem[] => {
 
 export const getEffectiveSources = (): ConfigItem[] => {
   const sources = getSources();
-  return sources.length > 0 ? sources : DEFAULT_SOURCES;
+  const baseSources = sources.length > 0 ? sources : DEFAULT_SOURCES;
+  
+  // Migration: Fix mangled URLs that have &at=json without a ?
+  return baseSources.map(s => {
+    if (s.url.includes('&at=json') && !s.url.includes('?')) {
+      return { ...s, url: s.url.replace('&at=json', '/at/json') };
+    }
+    // Also fix double query markers if any
+    if (s.url.includes('?at=json?')) {
+      return { ...s, url: s.url.replace('?at=json?', '?at=json&') };
+    }
+    return s;
+  });
 };
 
 export const setSources = (sources: ConfigItem[]) => {
@@ -111,13 +122,15 @@ export const getCorsProxies = (): ConfigItem[] => {
   
   try {
     const proxies: ConfigItem[] = JSON.parse(saved);
-    // Migration: update default proxy if it's using the old external URL
-    return proxies.map(p => {
-      if (p.id === 'default' && p.url.includes('takaosakuma.dpdns.org')) {
-        return DEFAULT_CORS[0];
-      }
-      return p;
-    });
+    // Migration: remove failing Takao proxy and update default if needed
+    return proxies
+      .filter(p => p.id !== 'takao')
+      .map(p => {
+        if (p.id === 'default' && (p.url.includes('takaosakuma.dpdns.org') || p.url === '/api/proxy?url=' || !p.url)) {
+          return DEFAULT_CORS[0];
+        }
+        return p;
+      });
   } catch (e) {
     return DEFAULT_CORS;
   }
@@ -356,11 +369,24 @@ export async function syncFromLunaTV(sourceType: 'full' | 'jin18' | 'jingjian' =
   const config = await response.json();
   if (!config.api_site) throw new Error('配置格式不正确');
   
-  const newSources: ConfigItem[] = Object.entries(config.api_site).map(([key, site]: [string, any]) => ({
-    id: key.replace(/\./g, '_'),
-    name: site.name,
-    url: site.api + (site.api.includes('?') ? '&at=json' : '/at/json')
-  }));
+  const newSources: ConfigItem[] = Object.entries(config.api_site).map(([key, site]: [string, any]) => {
+    let url = site.api;
+    if (url.includes('?')) {
+      // If it already has query params, ensure at=json is there
+      if (!url.includes('at=json')) {
+        url += '&at=json';
+      }
+    } else {
+      // If it's a path, prefer /at/json
+      url += '/at/json';
+    }
+    
+    return {
+      id: key.replace(/\./g, '_'),
+      name: site.name,
+      url: url
+    };
+  });
   
   return newSources;
 }

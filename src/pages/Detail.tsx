@@ -64,6 +64,25 @@ export default function Detail() {
       .finally(() => setLoading(false));
   }, [id, sourceId]);
 
+  useEffect(() => {
+    if (video && activeEpisode && isUserLoggedIn()) {
+      // Defensive check for required fields
+      if (!id || !video.vod_name) return;
+
+      saveHistory({
+        vod_id: String(id),
+        vod_name: video.vod_name,
+        vod_pic: video.vod_pic || '',
+        source_id: video.source_id || sourceId || 'default',
+        episode_name: activeEpisode.name || '正片',
+        progress: 0,
+        duration: 0
+      }).catch(err => {
+        console.error('[Detail] Failed to save history:', err);
+      });
+    }
+  }, [video, activeEpisode]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -114,20 +133,6 @@ export default function Detail() {
     }
   };
 
-  useEffect(() => {
-    if (video && activeEpisode && isUserLoggedIn()) {
-      saveHistory({
-        vod_id: id!,
-        vod_name: video.vod_name,
-        vod_pic: video.vod_pic,
-        source_id: video.source_id || sourceId || 'default',
-        episode_name: activeEpisode.name,
-        progress: 0, // In a real app, you'd track this from the player
-        duration: 0
-      });
-    }
-  }, [video, activeEpisode]);
-
   const activeSource = sources[activeSourceIndex];
 
   return (
@@ -172,7 +177,11 @@ export default function Detail() {
             {/* Player */}
             {activeEpisode ? (
               <div className="space-y-4">
-                <VideoPlayer url={activeEpisode.url} poster={video.vod_pic} />
+                <VideoPlayer 
+                  key={activeEpisode.url} 
+                  url={activeEpisode.url} 
+                  poster={video.vod_pic} 
+                />
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-white">
                     正在播放: <span className="text-rose-400">{activeEpisode.name}</span>

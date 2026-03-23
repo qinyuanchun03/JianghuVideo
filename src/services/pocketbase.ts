@@ -105,14 +105,22 @@ export const saveHistory = async (data: {
     });
     return await pb.collection('history').update(existing.id, {
       ...data,
-      updated: new Date().toISOString(),
     });
-  } catch (e) {
-    // Create new
-    return await pb.collection('history').create({
-      ...data,
-      user: userId,
-    });
+  } catch (e: any) {
+    if (e.status === 404) {
+      // Create new
+      try {
+        return await pb.collection('history').create({
+          ...data,
+          user: userId,
+        });
+      } catch (createErr: any) {
+        console.error('PocketBase Create History Error Detail:', createErr.data);
+        throw createErr;
+      }
+    }
+    console.error('PocketBase Update History Error Detail:', e.data);
+    throw e;
   }
 };
 
@@ -145,11 +153,20 @@ export const toggleFavorite = async (data: {
     });
     await pb.collection('favorites').delete(existing.id);
     return false; // Unfavorited
-  } catch (e) {
-    await pb.collection('favorites').create({
-      ...data,
-      user: userId,
-    });
-    return true; // Favorited
+  } catch (e: any) {
+    if (e.status === 404) {
+      try {
+        await pb.collection('favorites').create({
+          ...data,
+          user: userId,
+        });
+        return true; // Favorited
+      } catch (createErr: any) {
+        console.error('PocketBase Create Favorite Error Detail:', createErr.data);
+        throw createErr;
+      }
+    }
+    console.error('PocketBase Toggle Favorite Error Detail:', e.data);
+    throw e;
   }
 };
