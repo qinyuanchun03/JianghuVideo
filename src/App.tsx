@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Film, Search, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, Film, Search, Loader2, X } from 'lucide-react';
 import Home from './pages/Home';
 import Detail from './pages/Detail';
 import Settings from './pages/Settings';
@@ -37,7 +37,14 @@ function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
       scrolled ? 'bg-black/80 backdrop-blur-xl border-b border-white/5' : 'bg-gradient-to-b from-black/80 to-transparent border-transparent'
     }`}>
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-2 text-white hover:text-rose-400 transition-colors shrink-0">
+        <Link 
+          to="/" 
+          onClick={() => {
+            setSearchQuery('');
+            navigate('/');
+          }}
+          className="flex items-center gap-2 text-white hover:text-rose-400 transition-colors shrink-0"
+        >
           <Film className="w-6 h-6 text-rose-500" />
           <span className="font-bold text-lg tracking-tight hidden sm:block">江湖影院</span>
         </Link>
@@ -51,9 +58,21 @@ function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索..."
-              className="w-full bg-zinc-900/80 border border-white/10 rounded-full py-1.5 pl-9 pr-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-rose-500/50 focus:border-rose-500 backdrop-blur-xl transition-all"
+              placeholder="搜索影片、导演、主演..."
+              className="w-full bg-zinc-900/80 border border-white/10 rounded-full py-1.5 pl-9 pr-10 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-rose-500/50 focus:border-rose-500 backdrop-blur-xl transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  navigate('/');
+                }}
+                className="absolute inset-y-0 right-3 flex items-center text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </form>
           <button 
             onClick={onOpenSettings}

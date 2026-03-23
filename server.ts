@@ -2,6 +2,10 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 
+// Disable SSL verification for proxy requests to handle misconfigured MacCMS certificates
+// This is necessary because many MacCMS providers use self-signed or expired certificates.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -9,7 +13,6 @@ async function startServer() {
   // Proxy API route to bypass CORS and support LunaTV-config style features
   app.get("/api/proxy", async (req, res) => {
     const targetUrl = req.query.url as string;
-    console.log(`[Proxy] Request for: ${targetUrl}`);
     
     try {
       const format = req.query.format as string;
@@ -25,34 +28,44 @@ async function startServer() {
         const fileName = sourceFiles[source] || sourceFiles['full'];
         const githubUrl = `https://raw.githubusercontent.com/qinyuanchun03/LunaTV-config/main/${fileName}`;
         
-        const response = await fetch(githubUrl);
-        if (!response.ok) throw new Error(`Failed to fetch source from GitHub: ${response.status}`);
-        
-        const config = await response.json();
-        
-        // If format is 1 (proxy), we prefix the API URLs with our local proxy
-        if (format === '1' || format === 'proxy') {
-          const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-          const proxyPrefix = `${appUrl}/api/proxy?url=`;
+        try {
+          const response = await fetch(githubUrl);
+          if (!response.ok) throw new Error(`Failed to fetch source from GitHub: ${response.status}`);
           
-          if (config.api_site) {
-            Object.keys(config.api_site).forEach(key => {
-              const site = config.api_site[key];
-              if (site.api) {
-                site.api = `${proxyPrefix}${encodeURIComponent(site.api)}`;
-              }
-            });
+          const config = await response.json();
+          
+          // If format is 1 (proxy), we prefix the API URLs with our local proxy
+          if (format === '1' || format === 'proxy') {
+            const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+            const proxyPrefix = `${appUrl}/api/proxy?url=`;
+            
+            if (config.api_site) {
+              Object.keys(config.api_site).forEach(key => {
+                const site = config.api_site[key];
+                if (site.api) {
+                  site.api = `${proxyPrefix}${encodeURIComponent(site.api)}`;
+                }
+              });
+            }
           }
+          
+          return res.json(config);
+        } catch (e: any) {
+          console.error(`[Proxy] GitHub fetch error: ${e.message}`);
+          return res.status(500).json({ error: "Failed to fetch configuration source" });
         }
-        
-        return res.json(config);
       }
 
       if (!targetUrl) {
         return res.status(400).json({ error: "Missing url parameter" });
       }
 
-      const url = new URL(targetUrl);
+      let url: URL;
+      try {
+        url = new URL(targetUrl);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid target URL" });
+      }
       
       // Forward other query parameters
       Object.entries(req.query).forEach(([key, value]) => {
@@ -64,48 +77,75 @@ async function startServer() {
         }
       });
 
+      // Ensure we request JSON if possible
+      if (!url.searchParams.has('ac')) {
+        url.searchParams.append('ac', 'list');
+      }
+      
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 20000); // Increased to 20s
 
+      const upstreamStartTime = Date.now();
       try {
         const response = await fetch(url.toString(), {
           signal: controller.signal,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
-            'Cache-Control': 'no-cache'
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': url.origin,
+            'Origin': url.origin
           }
         });
+        
+        const upstreamEndTime = Date.now();
+        const upstreamDuration = upstreamEndTime - upstreamStartTime;
         
         clearTimeout(timeout);
 
         if (!response.ok) {
           console.error(`[Proxy] Upstream error: ${response.status} for ${url.toString()}`);
-          return res.status(response.status).json({ error: `Upstream returned ${response.status}` });
+          return res.status(response.status).json({ 
+            error: `Upstream error ${response.status}`,
+            url: url.toString()
+          });
         }
 
         const text = await response.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error(`[Proxy] JSON parse error for ${url.toString()}`);
-          return res.status(500).json({ 
-            error: "Upstream API did not return valid JSON.", 
-            details: "Please ensure the API supports JSON output (e.g., ends with /at/json)",
-            raw: text.substring(0, 200) 
-          });
+        
+        // Add timing header
+        res.setHeader('X-Upstream-Time', upstreamDuration.toString());
+
+        // Check if it's actually JSON
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          try {
+            const data = JSON.parse(text);
+            return res.json(data);
+          } catch (e) {
+            console.error(`[Proxy] JSON parse error for ${url.toString()}`);
+          }
         }
-        res.json(data);
+
+        // If not JSON, it might be an error page or XML
+        console.warn(`[Proxy] Non-JSON response from ${url.toString()}`);
+        return res.status(502).json({ 
+          error: "Upstream API did not return valid JSON.", 
+          details: "The server might be down, under maintenance, or blocking the request.",
+          rawPreview: text.substring(0, 100)
+        });
+
       } catch (e: any) {
         clearTimeout(timeout);
         if (e.name === 'AbortError') {
-          return res.status(504).json({ error: "Upstream request timed out (15s)" });
+          console.error(`[Proxy] Timeout for ${url.toString()}`);
+          return res.status(504).json({ error: "Upstream request timed out (20s)" });
         }
         throw e;
       }
     } catch (error: any) {
-      console.error("Proxy error:", error);
+      console.error("[Proxy] Error:", error.message);
       res.status(500).json({ error: error.message || "Proxy request failed" });
     }
   });

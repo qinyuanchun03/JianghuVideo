@@ -156,10 +156,10 @@ export const setActivePlayerId = (id: string) => {
 
 export const getCustomPlayerUrl = () => {
   const legacy = localStorage.getItem('custom_player_url');
-  if (legacy !== null && !localStorage.getItem('maccms_players')) return legacy;
+  if (legacy !== null && !localStorage.getItem('maccms_players')) return legacy || null;
   const players = getPlayers();
   const active = players.find(p => p.id === getActivePlayerId()) || players[0];
-  return active ? active.url : '';
+  return (active && active.url) ? active.url : null;
 };
 
 export async function fetchMacCMS(params: Record<string, string | number>, sourceId?: string, signal?: AbortSignal): Promise<MacCMSResponse> {
@@ -211,13 +211,13 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
     return `${proxy}${encodeURIComponent(target)}`;
   };
 
+  const startTime = performance.now();
   let response;
   let lastError: any;
   const maxRetries = 1; // Try each proxy once
 
   const tryFetch = async (currentProxy: string) => {
     const finalUrl = getFullProxyUrl(currentProxy, targetUrl.toString());
-    console.log(`[Fetch] Trying proxy: ${currentProxy || 'Direct'} -> ${finalUrl}`);
     return await fetch(finalUrl, { 
       signal,
       headers: {
@@ -245,6 +245,9 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
     }
   }
 
+  const endTime = performance.now();
+  const clientSidePing = Math.round(endTime - startTime);
+
   if (!response || !response.ok) {
     const status = response?.status || 'unknown';
     let errorMessage = `网络连接失败 (${status}): 请检查网络或尝试切换代理`;
@@ -259,9 +262,17 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
     throw new Error(errorMessage);
   }
 
+  // Extract upstream timing if available from our proxy
+  const upstreamTimeHeader = response.headers.get('X-Upstream-Time');
+  const upstreamPing = upstreamTimeHeader ? parseInt(upstreamTimeHeader, 10) : null;
+  
+  // Use upstream ping if available (more accurate for site speed), otherwise fallback to client-side
+  const finalPing = upstreamPing !== null ? upstreamPing : clientSidePing;
+
   let data;
   try {
     data = await response.json();
+    data._ping = finalPing;
   } catch (e) {
     throw new Error('接口返回的数据格式不正确，请确保接口支持 JSON 格式输出 (例如在地址末尾加上 /at/json)');
   }
@@ -273,11 +284,10 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
 }
 
 export async function pingSource(source: ConfigItem, signal?: AbortSignal): Promise<number> {
-  const startTime = Date.now();
   try {
     // Just fetch categories as a lightweight ping
-    await fetchMacCMS({ ac: 'list' }, source.id, signal);
-    return Date.now() - startTime;
+    const res = await fetchMacCMS({ ac: 'list' }, source.id, signal);
+    return res._ping || 9999;
   } catch (e) {
     return 9999;
   }
@@ -363,9 +373,8 @@ export async function searchAllSources(wd: string): Promise<{ sourceId: string; 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
       
-      const startTime = Date.now();
       const res = await fetchMacCMS({ ac: 'detail', wd }, source.id, controller.signal);
-      const ping = Date.now() - startTime;
+      const ping = res._ping || 9999;
       clearTimeout(timeoutId);
       
       const list = (res.list || []).map(v => ({

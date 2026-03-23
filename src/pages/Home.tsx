@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { PlayCircle, Loader2, AlertCircle, Play, Star, ChevronRight } from 'lucide-react';
+import { PlayCircle, Loader2, AlertCircle, Play, Star, ChevronRight, Search } from 'lucide-react';
 import { getVideos, getCategories, searchAllSources } from '../services/maccms';
 import { MacCMSVideo, MacCMSCategory } from '../types';
 
@@ -12,7 +12,7 @@ const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
   >
     <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5">
       <img 
-        src={video.vod_pic} 
+        src={video.vod_pic || null} 
         alt={video.vod_name}
         referrerPolicy="no-referrer"
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -175,7 +175,7 @@ export default function Home() {
       {isHomeMode && featuredVideo && (
         <div className="relative w-full h-[70vh] md:h-[85vh] mb-8">
           <div className="absolute inset-0">
-            <img src={featuredVideo.vod_pic} alt={featuredVideo.vod_name} className="w-full h-full object-cover opacity-50" referrerPolicy="no-referrer" />
+            <img src={featuredVideo.vod_pic || null} alt={featuredVideo.vod_name} className="w-full h-full object-cover opacity-50" referrerPolicy="no-referrer" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent" />
           </div>
@@ -295,8 +295,21 @@ export default function Home() {
             )}
 
             {!gridLoading && gridVideos.length === 0 && (
-              <div className="text-center py-20 text-zinc-500">
-                没有找到相关影片
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <Search className="w-16 h-16 text-zinc-700 mb-4" />
+                <h3 className="text-xl font-medium text-white mb-2">未找到相关内容</h3>
+                <p className="text-zinc-500 max-w-sm">
+                  尝试更换关键词或在设置中切换其他订阅源。
+                </p>
+                <button 
+                  onClick={() => {
+                    setSearchParams({});
+                    setActiveCategory(undefined);
+                  }}
+                  className="mt-6 px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full transition-colors border border-white/5"
+                >
+                  返回首页推荐
+                </button>
               </div>
             )}
 

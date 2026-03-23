@@ -69,12 +69,20 @@ export default function Detail() {
       <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
         <h2 className="text-2xl font-bold text-white mb-4">出错了</h2>
         <p className="text-zinc-400 mb-8">{error || '影片不存在'}</p>
-        <button 
-          onClick={() => navigate(-1)}
-          className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
-        >
-          返回上一页
-        </button>
+        <div className="flex gap-4">
+          <button 
+            onClick={() => navigate(-1)}
+            className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+          >
+            返回上一页
+          </button>
+          <button 
+            onClick={() => navigate('/')}
+            className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-full transition-colors"
+          >
+            回到首页
+          </button>
+        </div>
       </div>
     );
   }
@@ -87,7 +95,14 @@ export default function Detail() {
       <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 py-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // If we have history within the app, go back, otherwise go to home
+              if (window.history.length > 2) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
             className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -123,7 +138,7 @@ export default function Detail() {
                 <div className="w-1/4 sm:w-1/5 shrink-0">
                   <div className="aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl">
                     <img 
-                      src={video.vod_pic} 
+                      src={video.vod_pic || null} 
                       alt={video.vod_name}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"

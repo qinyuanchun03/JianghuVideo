@@ -34,6 +34,7 @@ export interface MacCMSResponse {
   total: number;
   list: MacCMSVideo[];
   class?: MacCMSCategory[];
+  _ping?: number;
 }
 
 export interface Episode {
