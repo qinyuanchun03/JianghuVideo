@@ -27,8 +27,9 @@ const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
         </div>
       )}
       {video.source_name && (
-        <div className="absolute top-2 left-2 bg-rose-600/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-md font-medium">
+        <div className="absolute top-2 left-2 bg-rose-600/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-md font-medium flex items-center gap-1">
           {video.source_name}
+          {video._ping && <span className="opacity-60 font-mono">| {video._ping}ms</span>}
         </div>
       )}
     </div>
@@ -125,8 +126,23 @@ export default function Home() {
       searchAllSources(searchQuery)
         .then(results => {
           if (!isMounted) return;
-          const allVideos = results.flatMap(r => r.list);
-          setGridVideos(allVideos);
+          
+          // 整合搜索结果：按名称去重，保留延迟最低（最快）的渠道
+          // results 已经按 ping 升序排列，所以先遇到的名称即为最快渠道
+          const consolidated: MacCMSVideo[] = [];
+          const seenNames = new Set<string>();
+          
+          results.forEach(sourceResult => {
+            sourceResult.list.forEach(video => {
+              const cleanName = video.vod_name.trim();
+              if (!seenNames.has(cleanName)) {
+                seenNames.add(cleanName);
+                consolidated.push(video);
+              }
+            });
+          });
+          
+          setGridVideos(consolidated);
           setHasMore(false);
         })
         .catch(err => {
@@ -175,7 +191,13 @@ export default function Home() {
       {isHomeMode && featuredVideo && (
         <div className="relative w-full h-[70vh] md:h-[85vh] mb-8">
           <div className="absolute inset-0">
-            <img src={featuredVideo.vod_pic || null} alt={featuredVideo.vod_name} className="w-full h-full object-cover opacity-50" referrerPolicy="no-referrer" />
+            <img 
+              src={featuredVideo.vod_pic || null} 
+              alt={featuredVideo.vod_name} 
+              className="w-full h-full object-cover opacity-50" 
+              referrerPolicy="no-referrer" 
+              loading="lazy"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent" />
           </div>

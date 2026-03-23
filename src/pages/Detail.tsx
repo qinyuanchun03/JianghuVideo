@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star, Search, ChevronRight, Heart } from 'lucide-react';
 import { getVideoDetail, parsePlayUrls, searchAllSources } from '../services/maccms';
 import { MacCMSVideo, PlaySource, Episode } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
-import { isFavorited, toggleFavorite, saveHistory, isUserLoggedIn } from '../services/pocketbase';
+import { isFavorited, toggleFavorite, saveHistory, getHistoryByVodId, isUserLoggedIn } from '../services/pocketbase';
 import AuthModal from '../components/AuthModal';
 
 export default function Detail() {
@@ -27,20 +27,52 @@ export default function Detail() {
   
   const [isFav, setIsFav] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const lastSavedRef = useRef<string | null>(null);
+  const [initialProgress, setInitialProgress] = useState(0);
+  const progressRef = useRef({ progress: 0, duration: 0 });
 
   useEffect(() => {
     if (!id) return;
     
     setLoading(true);
     setAlternativeSources([]);
-    getVideoDetail(Number(id), sourceId)
-      .then(data => {
+    
+    // Fetch video detail and history in parallel
+    Promise.all([
+      getVideoDetail(Number(id), sourceId),
+      getHistoryByVodId(id)
+    ])
+      .then(([data, historyRecord]) => {
         setVideo(data);
         const parsedSources = parsePlayUrls(data.vod_play_from, data.vod_play_url);
         setSources(parsedSources);
         
-        if (parsedSources.length > 0 && parsedSources[0].episodes.length > 0) {
-          setActiveEpisode(parsedSources[0].episodes[0]);
+        if (parsedSources.length > 0) {
+          // Find the first source that has episodes
+          const firstValidSourceIndex = parsedSources.findIndex(s => s.episodes.length > 0);
+          
+          if (firstValidSourceIndex !== -1) {
+            let targetEpisode = parsedSources[firstValidSourceIndex].episodes[0];
+            let targetSourceIndex = firstValidSourceIndex;
+            
+            // Restore from history if available
+            if (historyRecord) {
+              // Find the source index if the history record has a different source
+              for (let i = 0; i < parsedSources.length; i++) {
+                const ep = parsedSources[i].episodes.find(e => e.name === historyRecord.episode_name);
+                if (ep) {
+                  targetEpisode = ep;
+                  targetSourceIndex = i;
+                  setInitialProgress(historyRecord.progress || 0);
+                  progressRef.current = { progress: historyRecord.progress || 0, duration: historyRecord.duration || 0 };
+                  break;
+                }
+              }
+            }
+            
+            setActiveSourceIndex(targetSourceIndex);
+            setActiveEpisode(targetEpisode);
+          }
         }
 
         // Check favorite status
@@ -56,6 +88,22 @@ export default function Detail() {
               r.list.some(v => v.vod_name === data.vod_name)
             );
             setAlternativeSources(alternatives);
+
+            // 自动按延迟选择最合适的渠道：如果当前渠道延迟过高且有更快的渠道，自动跳转
+            // 只有在没有手动指定 sourceId 的情况下才自动切换，避免死循环
+            if (!sourceId && alternatives.length > 0) {
+              const bestAlt = alternatives[0];
+              const currentPing = data._ping || 9999;
+              
+              // 如果备选渠道延迟明显更低（快 500ms 以上且总延迟小于 1000ms），则自动切换
+              if (bestAlt.ping < 1000 && (currentPing - bestAlt.ping) > 500) {
+                const matchedVideo = bestAlt.list.find(v => v.vod_name === data.vod_name);
+                if (matchedVideo) {
+                  console.log(`[Detail] Auto-switching to faster source: ${bestAlt.sourceName} (${bestAlt.ping}ms vs ${currentPing}ms)`);
+                  navigate(`/video/${matchedVideo.vod_id}?source=${bestAlt.sourceId}`, { replace: true });
+                }
+              }
+            }
           })
           .catch(console.error)
           .finally(() => setSearchingAlternatives(false));
@@ -69,19 +117,36 @@ export default function Detail() {
       // Defensive check for required fields
       if (!id || !video.vod_name) return;
 
-      saveHistory({
-        vod_id: String(id),
-        vod_name: video.vod_name,
-        vod_pic: video.vod_pic || '',
-        source_id: video.source_id || sourceId || 'default',
-        episode_name: activeEpisode.name || '正片',
-        progress: 0,
-        duration: 0
-      }).catch(err => {
-        console.error('[Detail] Failed to save history:', err);
-      });
+      // Save immediately on episode change, then periodically
+      const saveCurrentProgress = () => {
+        saveHistory({
+          vod_id: String(id),
+          vod_name: video.vod_name,
+          vod_pic: video.vod_pic || '',
+          source_id: video.source_id || sourceId || 'default',
+          episode_name: activeEpisode.name || '正片',
+          progress: progressRef.current.progress,
+          duration: progressRef.current.duration
+        }).catch(err => {
+          if (err.name !== 'AbortError' && !err.message?.includes('autocancelled')) {
+            console.error('[Detail] Failed to save history:', err);
+          }
+        });
+      };
+
+      // Save once initially when episode loads
+      saveCurrentProgress();
+
+      // Then save every 10 seconds
+      const interval = setInterval(saveCurrentProgress, 10000);
+      
+      return () => clearInterval(interval);
     }
-  }, [video, activeEpisode]);
+  }, [video, activeEpisode, id, sourceId]);
+
+  const handleProgress = (progress: number, duration: number) => {
+    progressRef.current = { progress, duration };
+  };
 
   if (loading) {
     return (
@@ -180,7 +245,9 @@ export default function Detail() {
                 <VideoPlayer 
                   key={activeEpisode.url} 
                   url={activeEpisode.url} 
-                  poster={video.vod_pic} 
+                  poster={video.vod_pic}
+                  initialProgress={initialProgress}
+                  onProgress={handleProgress}
                 />
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-white">
@@ -203,6 +270,7 @@ export default function Detail() {
                       src={video.vod_pic || null} 
                       alt={video.vod_name}
                       referrerPolicy="no-referrer"
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -313,6 +381,8 @@ export default function Detail() {
                         onClick={() => {
                           setActiveSourceIndex(idx);
                           setActiveEpisode(source.episodes[0]);
+                          setInitialProgress(0);
+                          progressRef.current = { progress: 0, duration: 0 };
                         }}
                         className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                           activeSourceIndex === idx
@@ -332,7 +402,11 @@ export default function Detail() {
                     {activeSource.episodes.map((ep, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setActiveEpisode(ep)}
+                        onClick={() => {
+                          setActiveEpisode(ep);
+                          setInitialProgress(0);
+                          progressRef.current = { progress: 0, duration: 0 };
+                        }}
                         className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all truncate ${
                           activeEpisode?.url === ep.url
                             ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50'

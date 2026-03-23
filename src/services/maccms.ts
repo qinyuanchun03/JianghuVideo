@@ -1,4 +1,53 @@
 import { MacCMSResponse, PlaySource, MacCMSVideo } from '../types';
+import { storage } from '../utils/storage';
+
+// Simple Rate Limiter for CORS requests
+class RateLimiter {
+  private queue: (() => void)[] = [];
+  private activeCount = 0;
+  private lastRequestTime = 0;
+  private readonly minInterval = 200; // 200ms between requests
+  private readonly maxConcurrent = 3; // Max 3 concurrent requests
+
+  async acquire(): Promise<void> {
+    if (this.activeCount < this.maxConcurrent) {
+      const now = Date.now();
+      const waitTime = Math.max(0, this.lastRequestTime + this.minInterval - now);
+      
+      if (waitTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      this.activeCount++;
+      this.lastRequestTime = Date.now();
+      return;
+    }
+
+    return new Promise(resolve => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    this.activeCount--;
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) {
+        setTimeout(async () => {
+          const now = Date.now();
+          const waitTime = Math.max(0, this.lastRequestTime + this.minInterval - now);
+          if (waitTime > 0) await new Promise(r => setTimeout(r, waitTime));
+          
+          this.activeCount++;
+          this.lastRequestTime = Date.now();
+          next();
+        }, 0);
+      }
+    }
+  }
+}
+
+const limiter = new RateLimiter();
 
 export interface ConfigItem {
   id: string;
@@ -64,24 +113,31 @@ const DEFAULT_SOURCES: ConfigItem[] = [
   { id: 'testSource', name: '空内容测试源', url: 'https://www.example.com/api.php/provide/vod/at/json' }
 ];
 
+const LITE_SOURCES: ConfigItem[] = DEFAULT_SOURCES.slice(0, 10);
+// Add testSource if it exists
+const testSource = DEFAULT_SOURCES.find(s => s.id === 'testSource');
+if (testSource) LITE_SOURCES.push(testSource);
+
 const DEFAULT_CORS: ConfigItem[] = [
   { id: 'default', name: '内置代理 (推荐)', url: 'https://video-api.250221.xyz/?url=' },
   { id: 'none', name: '直连 (无代理)', url: '' }
 ];
 
 const DEFAULT_PLAYERS: ConfigItem[] = [
-  { id: 'default', name: '内置 DPlayer/HLS', url: '' }
+  { id: 'default', name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' },
+  { id: 'dplayer', name: '内置 DPlayer/HLS', url: '' }
 ];
 
 export const getSources = (): ConfigItem[] => {
-  const saved = localStorage.getItem('maccms_sources');
+  const saved = storage.get('maccms_sources');
   // Return empty array if no custom sources saved, so Settings starts clean
-  return saved ? JSON.parse(saved) : [];
+  return Array.isArray(saved) ? saved : [];
 };
 
 export const getEffectiveSources = (): ConfigItem[] => {
   const sources = getSources();
-  const baseSources = sources.length > 0 ? sources : DEFAULT_SOURCES;
+  const useFull = storage.get('maccms_use_full_sources') === true;
+  const baseSources = (Array.isArray(sources) && sources.length > 0) ? sources : (useFull ? DEFAULT_SOURCES : LITE_SOURCES);
   
   // Migration: Fix mangled URLs that have &at=json without a ?
   return baseSources.map(s => {
@@ -97,12 +153,12 @@ export const getEffectiveSources = (): ConfigItem[] => {
 };
 
 export const setSources = (sources: ConfigItem[]) => {
-  localStorage.setItem('maccms_sources', JSON.stringify(sources));
+  storage.set('maccms_sources', sources);
   window.dispatchEvent(new Event('maccms_settings_changed'));
 };
-export const getActiveSourceId = () => localStorage.getItem('maccms_active_source_id') || 'default';
+export const getActiveSourceId = () => storage.get('maccms_active_source_id') || 'default';
 export const setActiveSourceId = (id: string) => {
-  localStorage.setItem('maccms_active_source_id', id);
+  storage.set('maccms_active_source_id', id);
   window.dispatchEvent(new Event('maccms_settings_changed'));
 };
 
@@ -117,11 +173,11 @@ export const getApiUrl = (sourceId?: string) => {
 };
 
 export const getCorsProxies = (): ConfigItem[] => {
-  const saved = localStorage.getItem('maccms_cors_proxies');
-  if (!saved) return DEFAULT_CORS;
+  const saved = storage.get('maccms_cors_proxies');
+  if (!Array.isArray(saved)) return DEFAULT_CORS;
   
   try {
-    const proxies: ConfigItem[] = JSON.parse(saved);
+    const proxies: ConfigItem[] = saved;
     // Migration: remove failing Takao proxy and update default if needed
     return proxies
       .filter(p => p.id !== 'takao')
@@ -136,46 +192,66 @@ export const getCorsProxies = (): ConfigItem[] => {
   }
 };
 export const setCorsProxies = (proxies: ConfigItem[]) => {
-  localStorage.setItem('maccms_cors_proxies', JSON.stringify(proxies));
+  storage.set('maccms_cors_proxies', proxies);
   window.dispatchEvent(new Event('maccms_settings_changed'));
 };
-export const getActiveCorsId = () => localStorage.getItem('maccms_active_cors_id') || 'default';
+export const getActiveCorsId = () => storage.get('maccms_active_cors_id') || 'default';
 export const setActiveCorsId = (id: string) => {
-  localStorage.setItem('maccms_active_cors_id', id);
+  storage.set('maccms_active_cors_id', id);
   window.dispatchEvent(new Event('maccms_settings_changed'));
 };
 
 export const getCorsProxyUrl = () => {
-  const legacy = localStorage.getItem('cors_proxy_url');
-  if (legacy !== null && !localStorage.getItem('maccms_cors_proxies')) return legacy;
+  const legacy = storage.get('cors_proxy_url');
+  if (legacy !== null && !storage.get('maccms_cors_proxies')) return legacy;
   const proxies = getCorsProxies();
   const active = proxies.find(p => p.id === getActiveCorsId()) || proxies[0];
   return active ? active.url : '';
 };
 
 export const getPlayers = (): ConfigItem[] => {
-  const saved = localStorage.getItem('maccms_players');
-  return saved ? JSON.parse(saved) : DEFAULT_PLAYERS;
+  const saved = storage.get('maccms_players');
+  if (!Array.isArray(saved)) return DEFAULT_PLAYERS;
+  
+  // Migration: Swap default and ikun URLs so default is ikun
+  return saved.map(p => {
+    if (p.id === 'default' && (p.url === '' || !p.url)) {
+      return { ...p, name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' };
+    }
+    if (p.id === 'ikun' && p.url === 'https://www.ikundmjx.com/?url=') {
+      return { ...p, id: 'dplayer', name: '内置 DPlayer/HLS', url: '' };
+    }
+    return p;
+  });
 };
 export const setPlayers = (players: ConfigItem[]) => {
-  localStorage.setItem('maccms_players', JSON.stringify(players));
+  storage.set('maccms_players', players);
   window.dispatchEvent(new Event('maccms_settings_changed'));
 };
-export const getActivePlayerId = () => localStorage.getItem('maccms_active_player_id') || 'default';
+export const getActivePlayerId = () => storage.get('maccms_active_player_id') || 'default';
 export const setActivePlayerId = (id: string) => {
-  localStorage.setItem('maccms_active_player_id', id);
+  storage.set('maccms_active_player_id', id);
   window.dispatchEvent(new Event('maccms_settings_changed'));
 };
 
 export const getCustomPlayerUrl = () => {
-  const legacy = localStorage.getItem('custom_player_url');
-  if (legacy !== null && !localStorage.getItem('maccms_players')) return legacy || null;
+  const legacy = storage.get('custom_player_url');
+  if (legacy !== null && !storage.get('maccms_players')) return legacy || null;
   const players = getPlayers();
   const active = players.find(p => p.id === getActivePlayerId()) || players[0];
   return (active && active.url) ? active.url : null;
 };
 
 export async function fetchMacCMS(params: Record<string, string | number>, sourceId?: string, signal?: AbortSignal): Promise<MacCMSResponse> {
+  await limiter.acquire();
+  try {
+    return await _fetchMacCMS(params, sourceId, signal);
+  } finally {
+    limiter.release();
+  }
+}
+
+async function _fetchMacCMS(params: Record<string, string | number>, sourceId?: string, signal?: AbortSignal): Promise<MacCMSResponse> {
   let baseUrl = getApiUrl(sourceId);
   if (!baseUrl) {
     throw new Error('未配置 API 接口地址');
@@ -208,6 +284,7 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
   
   let proxyUrl = targetUrl.toString();
   const fallbackProxies = [
+    'https://corsproxy.io/?',
     'https://api.allorigins.win/raw?url=',
     'https://thingproxy.freeboard.io/fetch/',
     'https://api.codetabs.com/v1/proxy?quest='
@@ -252,7 +329,8 @@ export async function fetchMacCMS(params: Record<string, string | number>, sourc
       try {
         response = await tryFetch(fallback);
         if (response.ok) break;
-      } catch (fe) {
+      } catch (fe: any) {
+        if (fe.name === 'AbortError') throw fe;
         console.warn(`Fallback ${fallback} failed`, fe);
       }
     }
@@ -397,7 +475,7 @@ export async function searchAllSources(wd: string): Promise<{ sourceId: string; 
   const promises = sources.map(async (source) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
       
       const res = await fetchMacCMS({ ac: 'detail', wd }, source.id, controller.signal);
       const ping = res._ping || 9999;
@@ -406,7 +484,8 @@ export async function searchAllSources(wd: string): Promise<{ sourceId: string; 
       const list = (res.list || []).map(v => ({
         ...v,
         source_id: source.id,
-        source_name: source.name
+        source_name: source.name,
+        _ping: ping
       }));
       
       return {

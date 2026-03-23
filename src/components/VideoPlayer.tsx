@@ -8,9 +8,11 @@ interface VideoPlayerProps {
   url: string;
   poster?: string;
   key?: string | number;
+  initialProgress?: number;
+  onProgress?: (progress: number, duration: number) => void;
 }
 
-export default function VideoPlayer({ url, poster }: VideoPlayerProps) {
+export default function VideoPlayer({ url, poster, initialProgress, onProgress }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const customPlayerUrl = getCustomPlayerUrl();
   const corsProxy = getCorsProxyUrl();
@@ -84,8 +86,35 @@ export default function VideoPlayer({ url, poster }: VideoPlayerProps) {
 
     dp.on('error', (e: any) => {
       console.error('[VideoPlayer] DPlayer Error:', e);
-      setError('播放器加载失败，可能由于资源失效或跨域限制');
+      const video = containerRef.current?.querySelector('video');
+      let details = '';
+      if (video?.error) {
+        switch (video.error.code) {
+          case 1: details = ' (用户终止)'; break;
+          case 2: details = ' (网络错误)'; break;
+          case 3: details = ' (解码错误)'; break;
+          case 4: details = ' (资源不支持)'; break;
+        }
+      }
+      setError(`播放器加载失败${details}，可能由于资源失效或跨域限制`);
     });
+
+    if (initialProgress && initialProgress > 0) {
+      dp.on('loadedmetadata', () => {
+        // Seek if duration is not available yet (NaN/Infinity) or if progress is less than duration
+        if (!dp.video.duration || !isFinite(dp.video.duration) || initialProgress < dp.video.duration - 2) {
+          dp.seek(initialProgress);
+        }
+      });
+    }
+
+    if (onProgress) {
+      dp.on('timeupdate', () => {
+        if (dp.video.currentTime > 0 && dp.video.duration > 0) {
+          onProgress(dp.video.currentTime, dp.video.duration);
+        }
+      });
+    }
 
     return () => {
       dp.destroy();
@@ -96,10 +125,11 @@ export default function VideoPlayer({ url, poster }: VideoPlayerProps) {
     <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10">
       {customPlayerUrl ? (
         <iframe
-          src={`${customPlayerUrl}${encodeURIComponent(url)}`}
+          src={`${customPlayerUrl}${encodeURIComponent(url)}${initialProgress ? `&time=${initialProgress}&t=${initialProgress}` : ''}`}
           className="w-full h-full border-0"
           allowFullScreen
           allow="autoplay; fullscreen"
+          referrerPolicy="no-referrer"
         />
       ) : (
         <>

@@ -1,7 +1,7 @@
-import PocketBase from 'pocketbase';
+import PocketBase, { LocalAuthStore } from 'pocketbase';
 
 const pbUrl = (import.meta as any).env.VITE_POCKETBASE_URL || 'https://api-serv.250221.xyz';
-export const pb = new PocketBase(pbUrl);
+export const pb = new PocketBase(pbUrl, new LocalAuthStore('pb_auth'));
 
 // Types for PocketBase collections
 export interface HistoryRecord {
@@ -65,6 +65,18 @@ export const getHistory = async (page = 1, perPage = 50) => {
   });
 };
 
+// Fetch specific history record for a video
+export const getHistoryByVodId = async (vod_id: string) => {
+  if (!isUserLoggedIn()) return null;
+  try {
+    return await pb.collection('history').getFirstListItem(`user="${getCurrentUserId()}" && vod_id="${vod_id}"`, {
+      $autoCancel: false,
+    });
+  } catch (e) {
+    return null;
+  }
+};
+
 // Fetch favorites for current user
 export const getFavorites = async (page = 1, perPage = 50) => {
   if (!isUserLoggedIn()) return { items: [] };
@@ -77,12 +89,12 @@ export const getFavorites = async (page = 1, perPage = 50) => {
 
 // Delete a history record
 export const deleteHistory = async (id: string) => {
-  return await pb.collection('history').delete(id);
+  return await pb.collection('history').delete(id, { $autoCancel: false });
 };
 
 // Delete a favorite record
 export const deleteFavorite = async (id: string) => {
-  return await pb.collection('favorites').delete(id);
+  return await pb.collection('favorites').delete(id, { $autoCancel: false });
 };
 
 // Save or update history
@@ -105,7 +117,7 @@ export const saveHistory = async (data: {
     });
     return await pb.collection('history').update(existing.id, {
       ...data,
-    });
+    }, { $autoCancel: false });
   } catch (e: any) {
     if (e.status === 404) {
       // Create new
@@ -113,7 +125,7 @@ export const saveHistory = async (data: {
         return await pb.collection('history').create({
           ...data,
           user: userId,
-        });
+        }, { $autoCancel: false });
       } catch (createErr: any) {
         console.error('PocketBase Create History Error Detail:', createErr.data);
         throw createErr;
@@ -151,7 +163,7 @@ export const toggleFavorite = async (data: {
     const existing = await pb.collection('favorites').getFirstListItem(`user="${userId}" && vod_id="${data.vod_id}"`, {
       $autoCancel: false,
     });
-    await pb.collection('favorites').delete(existing.id);
+    await pb.collection('favorites').delete(existing.id, { $autoCancel: false });
     return false; // Unfavorited
   } catch (e: any) {
     if (e.status === 404) {
@@ -159,7 +171,7 @@ export const toggleFavorite = async (data: {
         await pb.collection('favorites').create({
           ...data,
           user: userId,
-        });
+        }, { $autoCancel: false });
         return true; // Favorited
       } catch (createErr: any) {
         console.error('PocketBase Create Favorite Error Detail:', createErr.data);

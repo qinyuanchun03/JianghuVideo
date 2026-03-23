@@ -55,9 +55,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       }
 
       if (msg.includes('Only admins can perform this action')) {
-        msg = '权限不足：请在 PocketBase 后台将 users 集合的 Create 规则设置为公开 (留空)。';
+        msg = '权限不足：目前暂不支持新用户注册，请联系管理员。';
       } else if (msg.includes('Please verify your email first')) {
-        msg = '登录失败：请先在您的邮箱中完成验证，或在 PocketBase 后台手动将该用户设置为已验证 (Verified)。';
+        msg = '登录失败：请先在您的邮箱中完成验证。';
       }
 
       setError(msg);

@@ -18,6 +18,7 @@ export interface MacCMSVideo {
   vod_score?: string;
   source_id?: string;
   source_name?: string;
+  _ping?: number;
 }
 
 export interface MacCMSCategory {

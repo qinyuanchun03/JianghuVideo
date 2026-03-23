@@ -151,7 +151,7 @@ export default function UserCenter() {
               history.map((item) => (
                 <div 
                   key={item.id}
-                  onClick={() => navigate(`/video/${item.vod_id}?sid=${item.source_id}`)}
+                  onClick={() => navigate(`/video/${item.vod_id}?source=${item.source_id}`)}
                   className="group relative bg-zinc-900/40 rounded-2xl overflow-hidden border border-white/5 hover:border-white/20 transition-all cursor-pointer"
                 >
                   <div className="aspect-[3/4] relative overflow-hidden">
@@ -160,6 +160,7 @@ export default function UserCenter() {
                       alt={item.vod_name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <div className="w-12 h-12 bg-rose-600 rounded-full flex items-center justify-center text-white shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-transform">
@@ -172,6 +173,14 @@ export default function UserCenter() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    {item.duration > 0 && item.progress > 0 && (
+                      <div className="absolute bottom-0 left-0 w-full h-1 bg-black/50">
+                        <div 
+                          className="h-full bg-rose-500" 
+                          style={{ width: `${Math.min(100, Math.max(0, (item.progress / item.duration) * 100))}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="p-3">
                     <h3 className="text-sm font-bold text-white truncate group-hover:text-rose-400 transition-colors">{item.vod_name}</h3>
@@ -195,7 +204,7 @@ export default function UserCenter() {
               favorites.map((item) => (
                 <div 
                   key={item.id}
-                  onClick={() => navigate(`/video/${item.vod_id}?sid=${item.source_id}`)}
+                  onClick={() => navigate(`/video/${item.vod_id}?source=${item.source_id}`)}
                   className="group relative bg-zinc-900/40 rounded-2xl overflow-hidden border border-white/5 hover:border-white/20 transition-all cursor-pointer"
                 >
                   <div className="aspect-[3/4] relative overflow-hidden">
@@ -204,6 +213,7 @@ export default function UserCenter() {
                       alt={item.vod_name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <div className="w-12 h-12 bg-rose-600 rounded-full flex items-center justify-center text-white shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-transform">

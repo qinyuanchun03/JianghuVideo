@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { Settings as SettingsIcon, Save, Info, Rss, Shield, PlayCircle, Database, Trash2, Download, Plus, RefreshCw, X, Zap } from 'lucide-react';
+import { storage } from '../utils/storage';
 import { 
   ConfigItem,
   getSources, setSources, getActiveSourceId, setActiveSourceId,
@@ -7,7 +8,6 @@ import {
   getPlayers, setPlayers, getActivePlayerId, setActivePlayerId,
   syncFromLunaTV, findBestSource
 } from '../services/maccms';
-import PocketBaseTest from '../components/PocketBaseTest';
 
 type Tab = 'source' | 'cors' | 'player' | 'storage';
 
@@ -52,7 +52,7 @@ const ConfigItemRow = memo(({
         <div className="text-[10px] text-zinc-500 truncate mt-0.5 font-mono opacity-60">{item.url || '无 (内置/直连)'}</div>
       </div>
     </label>
-    {!['default', 'none'].includes(item.id) && (
+    {!['default', 'none', 'dplayer'].includes(item.id) && (
       <button
         type="button"
         onClick={() => onDelete(item.id)}
@@ -189,6 +189,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
   const [playersState, setPlayersState] = useState<ConfigItem[]>([]);
   const [activePlayerIdState, setActivePlayerIdState] = useState('');
+  const [useFullSourcesState, setUseFullSourcesState] = useState(storage.get('maccms_use_full_sources') === true);
   
   const [syncing, setSyncing] = useState(false);
   const [testingSpeed, setTestingSpeed] = useState(false);
@@ -226,6 +227,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       setActiveCorsId(activeCorsIdState);
       setPlayers(playersState);
       setActivePlayerId(activePlayerIdState);
+      storage.set('maccms_use_full_sources', useFullSourcesState);
+      window.dispatchEvent(new Event('maccms_settings_changed'));
 
       setSaved(true);
       const timer = setTimeout(() => setSaved(false), 2000);
@@ -233,7 +236,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     }, 500); // Debounce save
 
     return () => clearTimeout(saveTimeout);
-  }, [sourcesState, activeSourceIdState, corsProxiesState, activeCorsIdState, playersState, activePlayerIdState]);
+  }, [sourcesState, activeSourceIdState, corsProxiesState, activeCorsIdState, playersState, activePlayerIdState, useFullSourcesState]);
 
   const handleSync = async (type: 'full' | 'jin18' | 'jingjian') => {
     if (!window.confirm(`确定要从 LunaTV 同步订阅源吗？这将添加约 ${type === 'full' ? '80+' : '30+'} 个新源。`)) return;
@@ -349,59 +352,85 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           
           <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar overscroll-contain">
             {activeTab === 'source' && (
-              <ConfigSection
-                title="订阅源管理"
-                icon={Rss}
-                items={sourcesState}
-                activeId={activeSourceIdState}
-                onSetActive={setActiveSourceIdState}
-                onAdd={(name, url) => setSourcesState(prev => [...prev, { id: Date.now().toString(), name, url }])}
-                onDelete={(id) => {
-                  setSourcesState(prev => prev.filter(s => s.id !== id));
-                  if (activeSourceIdState === id) setActiveSourceIdState('default');
-                }}
-                namePlaceholder="源名称 (如: 卧龙资源)"
-                urlPlaceholder="接口地址 (需支持 JSON)"
-                extraActions={
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={handleAutoSelect}
-                      disabled={testingSpeed}
-                      className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
-                    >
-                      {testingSpeed ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Zap className="w-3.5 h-3.5" />
-                      )}
-                      {testingSpeed ? '测速中...' : '智能选取'}
-                    </button>
-                    <button
-                      onClick={() => handleSync('jin18')}
-                      disabled={syncing}
-                      className="px-4 py-2 bg-white/5 text-white border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                      精简同步
-                    </button>
-                    <button
-                      onClick={() => handleSync('full')}
-                      disabled={syncing}
-                      className="px-4 py-2 bg-zinc-900 text-zinc-400 border border-white/5 rounded-xl hover:bg-zinc-800 hover:text-white transition-all disabled:opacity-50 text-xs font-bold"
-                    >
-                      全量
-                    </button>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2.5 bg-rose-500/10 rounded-xl">
+                      <Database className="w-5 h-5 text-rose-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-tight">全量采集源</h3>
+                      <p className="text-xs text-zinc-500 mt-0.5">加载全部 80+ 采集源，关闭则仅加载 10+ 精简源以提升效率</p>
+                    </div>
                   </div>
-                }
-                description={
-                  <div className="flex items-start gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl text-zinc-500 text-xs leading-relaxed">
-                    <Info className="w-4 h-4 shrink-0 text-zinc-400 mt-0.5" />
-                    <p>
-                      自定义源将覆盖默认源。接口需支持 JSON 格式，推荐在地址末尾添加 <code className="text-white bg-white/10 px-1.5 py-0.5 rounded">/at/json</code>。
-                    </p>
-                  </div>
-                }
-              />
+                  <button
+                    onClick={() => setUseFullSourcesState(!useFullSourcesState)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      useFullSourcesState ? 'bg-rose-500' : 'bg-zinc-800'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        useFullSourcesState ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <ConfigSection
+                  title="订阅源管理"
+                  icon={Rss}
+                  items={sourcesState}
+                  activeId={activeSourceIdState}
+                  onSetActive={setActiveSourceIdState}
+                  onAdd={(name, url) => setSourcesState(prev => [...prev, { id: Date.now().toString(), name, url }])}
+                  onDelete={(id) => {
+                    setSourcesState(prev => prev.filter(s => s.id !== id));
+                    if (activeSourceIdState === id) setActiveSourceIdState('default');
+                  }}
+                  namePlaceholder="源名称 (如: 卧龙资源)"
+                  urlPlaceholder="接口地址 (需支持 JSON)"
+                  extraActions={
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={handleAutoSelect}
+                        disabled={testingSpeed}
+                        className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
+                      >
+                        {testingSpeed ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Zap className="w-3.5 h-3.5" />
+                        )}
+                        {testingSpeed ? '测速中...' : '智能选取'}
+                      </button>
+                      <button
+                        onClick={() => handleSync('jin18')}
+                        disabled={syncing}
+                        className="px-4 py-2 bg-white/5 text-white border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                        精简同步
+                      </button>
+                      <button
+                        onClick={() => handleSync('full')}
+                        disabled={syncing}
+                        className="px-4 py-2 bg-zinc-900 text-zinc-400 border border-white/5 rounded-xl hover:bg-zinc-800 hover:text-white transition-all disabled:opacity-50 text-xs font-bold"
+                      >
+                        全量
+                      </button>
+                    </div>
+                  }
+                  description={
+                    <div className="flex items-start gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl text-zinc-500 text-xs leading-relaxed">
+                      <Info className="w-4 h-4 shrink-0 text-zinc-400 mt-0.5" />
+                      <p>
+                        自定义源将覆盖默认源。接口需支持 JSON 格式，推荐在地址末尾添加 <code className="text-white bg-white/10 px-1.5 py-0.5 rounded">/at/json</code>。
+                      </p>
+                    </div>
+                  }
+                />
+              </div>
             )}
 
             {activeTab === 'cors' && (
@@ -466,8 +495,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 </div>
                 
                 <div className="grid grid-cols-1 gap-4">
-                  <PocketBaseTest />
-                  
                   <div className="p-6 bg-zinc-900/40 border border-white/5 rounded-2xl space-y-4">
                     <div>
                       <h3 className="text-sm font-bold text-white">清除缓存</h3>
