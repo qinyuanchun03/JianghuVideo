@@ -49,10 +49,21 @@ class RateLimiter {
 
 const limiter = new RateLimiter();
 
+export interface DeepTestResult {
+  searchTime: number;
+  detailTime: number;
+  streamTime: number;
+  successRate: number;
+  resultCount: number;
+  score: number;
+  lastTested: number;
+}
+
 export interface ConfigItem {
   id: string;
   name: string;
   url: string;
+  deepTestResult?: DeepTestResult;
 }
 
 const DEFAULT_SOURCES: ConfigItem[] = [
@@ -125,6 +136,7 @@ const DEFAULT_CORS: ConfigItem[] = [
 
 const DEFAULT_PLAYERS: ConfigItem[] = [
   { id: 'default', name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' },
+  { id: 'dbzy99', name: 'DBZY99 播放器', url: 'https://dbzy99.com:699/?url=' },
   { id: 'dplayer', name: '内置 DPlayer/HLS', url: '' }
 ];
 
@@ -214,7 +226,7 @@ export const getPlayers = (): ConfigItem[] => {
   if (!Array.isArray(saved)) return DEFAULT_PLAYERS;
   
   // Migration: Swap default and ikun URLs so default is ikun
-  return saved.map(p => {
+  const players = saved.map(p => {
     if (p.id === 'default' && (p.url === '' || !p.url)) {
       return { ...p, name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' };
     }
@@ -223,6 +235,16 @@ export const getPlayers = (): ConfigItem[] => {
     }
     return p;
   });
+
+  // Inject dbzy99 if missing
+  if (!players.find(p => p.id === 'dbzy99')) {
+    const dbzy99 = DEFAULT_PLAYERS.find(p => p.id === 'dbzy99');
+    if (dbzy99) {
+      players.splice(1, 0, dbzy99);
+    }
+  }
+
+  return players;
 };
 export const setPlayers = (players: ConfigItem[]) => {
   storage.set('maccms_players', players);
@@ -501,7 +523,24 @@ export async function searchAllSources(wd: string): Promise<{ sourceId: string; 
   });
 
   const results = await Promise.all(promises);
-  return results.filter(r => r.list.length > 0).sort((a, b) => a.ping - b.ping);
+  return results.filter(r => r.list.length > 0).sort((a, b) => {
+    const sourceA = sources.find(s => s.id === a.sourceId);
+    const sourceB = sources.find(s => s.id === b.sourceId);
+    
+    const scoreA = sourceA?.deepTestResult?.score;
+    const scoreB = sourceB?.deepTestResult?.score;
+    
+    // If both have scores, sort by score descending
+    if (scoreA !== undefined && scoreB !== undefined) {
+      return scoreB - scoreA;
+    }
+    // If only one has a score, prioritize it
+    if (scoreA !== undefined) return -1;
+    if (scoreB !== undefined) return 1;
+    
+    // Fallback to ping
+    return a.ping - b.ping;
+  });
 }
 
 export function parsePlayUrls(playFrom: string, playUrl: string): PlaySource[] {

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PlayCircle, Loader2, AlertCircle, Play, Star, ChevronRight, Search } from 'lucide-react';
-import { getVideos, getCategories, searchAllSources } from '../services/maccms';
+import { getVideos, getCategories, searchAllSources, getVideoDetail } from '../services/maccms';
 import { MacCMSVideo, MacCMSCategory } from '../types';
+import { getHistory, getFavorites, isUserLoggedIn } from '../services/pocketbase';
 
 const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
   <Link 
@@ -64,6 +65,10 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
+  // Recommendations State
+  const [recommendedVideos, setRecommendedVideos] = useState<MacCMSVideo[]>([]);
+  const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false);
+
   const isHomeMode = !activeCategory && !searchQuery;
 
   useEffect(() => {
@@ -81,6 +86,69 @@ export default function Home() {
       })
       .catch(console.error);
   }, [settingsVersion]);
+
+  // Fetch Recommendations
+  useEffect(() => {
+    if (!isHomeMode || !isUserLoggedIn()) return;
+    
+    let isMounted = true;
+    setIsRecommendationsLoading(true);
+
+    const fetchRecommendations = async () => {
+      try {
+        const [historyRes, favRes] = await Promise.all([
+          getHistory(1, 5),
+          getFavorites(1, 5)
+        ]);
+        
+        const recentItems = [...historyRes.items, ...favRes.items];
+        if (recentItems.length === 0) {
+          if (isMounted) setIsRecommendationsLoading(false);
+          return;
+        }
+
+        const uniqueVodIds = Array.from(new Set(recentItems.map(item => item.vod_id)));
+        
+        const detailsPromises = uniqueVodIds.slice(0, 3).map(id => 
+          getVideoDetail(Number(id)).catch(() => null)
+        );
+        const details = (await Promise.all(detailsPromises)).filter(Boolean) as MacCMSVideo[];
+        
+        if (details.length === 0) {
+          if (isMounted) setIsRecommendationsLoading(false);
+          return;
+        }
+
+        const typeIds = details.map(d => d.type_id).filter(Boolean);
+        const uniqueTypeIds = Array.from(new Set(typeIds));
+        
+        if (uniqueTypeIds.length === 0) {
+          if (isMounted) setIsRecommendationsLoading(false);
+          return;
+        }
+
+        const recPromises = uniqueTypeIds.map(typeId => getVideos(1, typeId));
+        const recResults = await Promise.all(recPromises);
+        
+        let allRecs = recResults.flatMap(r => r.list || []);
+        allRecs = Array.from(new Map(allRecs.map(v => [v.vod_id, v])).values());
+        allRecs = allRecs.filter(v => !uniqueVodIds.includes(String(v.vod_id)));
+        allRecs = allRecs.sort(() => 0.5 - Math.random()).slice(0, 12);
+        
+        if (isMounted) {
+          setRecommendedVideos(allRecs);
+        }
+      } catch (err) {
+        console.error("Failed to fetch recommendations:", err);
+      } finally {
+        if (isMounted) setIsRecommendationsLoading(false);
+      }
+    };
+
+    fetchRecommendations();
+    
+    return () => { isMounted = false; };
+  }, [isHomeMode, settingsVersion]);
 
   // Fetch for Home Mode
   useEffect(() => {
@@ -269,6 +337,22 @@ export default function Home() {
             <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-rose-500 animate-spin" /></div>
           ) : (
             <div className="space-y-10">
+              {/* Personalized Recommendations */}
+              {recommendedVideos.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400">猜你喜欢</h2>
+                  </div>
+                  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                    {recommendedVideos.map(video => (
+                      <div key={`rec-${video.source_id || 'default'}-${video.vod_id}`} className="snap-start shrink-0 w-36 md:w-48">
+                        <VideoCard video={video} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {Object.entries(groupedVideos).map(([categoryName, vids]) => (
                 <div key={categoryName}>
                   <div className="flex items-center justify-between mb-4">

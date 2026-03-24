@@ -36,13 +36,36 @@ export default function Detail() {
     
     setLoading(true);
     setAlternativeSources([]);
+    setError(null);
     
-    // Fetch video detail and history in parallel
-    Promise.all([
-      getVideoDetail(Number(id), sourceId),
-      getHistoryByVodId(id)
-    ])
-      .then(([data, historyRecord]) => {
+    const fetchData = async () => {
+      try {
+        // Fetch history first so we have the name if video fetch fails
+        const historyRecord = await getHistoryByVodId(id).catch(() => null);
+        
+        let data: MacCMSVideo;
+        try {
+          data = await getVideoDetail(Number(id), sourceId);
+        } catch (err: any) {
+          // If video fetch fails, but we have history with a name, try to find it elsewhere
+          if (historyRecord && historyRecord.vod_name) {
+            console.log(`[Detail] Video not found on source ${sourceId || 'default'}, searching by history name: ${historyRecord.vod_name}`);
+            const results = await searchAllSources(historyRecord.vod_name);
+            const alternatives = results.filter(r => r.list.some(v => v.vod_name === historyRecord.vod_name));
+            
+            if (alternatives.length > 0) {
+              const bestAlt = alternatives[0];
+              const matchedVideo = bestAlt.list.find(v => v.vod_name === historyRecord.vod_name);
+              if (matchedVideo) {
+                console.log(`[Detail] Found alternative on source ${bestAlt.sourceName}, redirecting...`);
+                navigate(`/video/${matchedVideo.vod_id}?source=${bestAlt.sourceId}`, { replace: true });
+                return; // Stop execution, let the new route handle it
+              }
+            }
+          }
+          throw err; // Re-throw if no alternatives found or no history
+        }
+
         setVideo(data);
         const parsedSources = parsePlayUrls(data.vod_play_from, data.vod_play_url);
         setSources(parsedSources);
@@ -107,10 +130,16 @@ export default function Detail() {
           })
           .catch(console.error)
           .finally(() => setSearchingAlternatives(false));
-      })
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [id, sourceId]);
+          
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id, sourceId, navigate]);
 
   useEffect(() => {
     if (video && activeEpisode && isUserLoggedIn()) {

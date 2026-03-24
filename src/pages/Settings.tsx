@@ -6,8 +6,9 @@ import {
   getSources, setSources, getActiveSourceId, setActiveSourceId,
   getCorsProxies, setCorsProxies, getActiveCorsId, setActiveCorsId,
   getPlayers, setPlayers, getActivePlayerId, setActivePlayerId,
-  syncFromLunaTV, findBestSource
+  syncFromLunaTV, findBestSource, getEffectiveSources
 } from '../services/maccms';
+import { runDeepTest } from '../services/speedTest';
 
 type Tab = 'source' | 'cors' | 'player' | 'storage';
 
@@ -36,9 +37,9 @@ const ConfigItemRow = memo(({
   onSetActive: (id: string) => void; 
   onDelete: (id: string) => void;
 }) => (
-  <div className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${activeId === item.id ? 'bg-white/10 border-white/20 shadow-lg' : 'bg-zinc-900/40 border-white/5 hover:border-white/10'}`}>
-    <label className="flex items-center gap-3 overflow-hidden flex-1 cursor-pointer group">
-      <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all duration-300 ${activeId === item.id ? 'border-white bg-white scale-110' : 'border-zinc-700 group-hover:border-zinc-500'}`}>
+  <div className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all duration-300 ${activeId === item.id ? 'bg-white/10 border-white/20 shadow-lg' : 'bg-zinc-900/40 border-white/5 hover:border-white/10'}`}>
+    <label className="flex items-center gap-3 overflow-hidden flex-1 cursor-pointer group py-1 pl-1">
+      <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all duration-300 shrink-0 ${activeId === item.id ? 'border-white bg-white scale-110' : 'border-zinc-700 group-hover:border-zinc-500'}`}>
         {activeId === item.id && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
       </div>
       <input
@@ -48,18 +49,36 @@ const ConfigItemRow = memo(({
         className="hidden"
       />
       <div className="truncate flex-1">
-        <div className="text-sm font-semibold text-white truncate">{item.name}</div>
-        <div className="text-[10px] text-zinc-500 truncate mt-0.5 font-mono opacity-60">{item.url || '无 (内置/直连)'}</div>
+        <div className="text-sm font-semibold text-white flex items-center gap-2">
+          <span className="truncate">{item.name}</span>
+          {item.deepTestResult && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono shrink-0 ${
+              item.deepTestResult.score > 80 ? 'bg-emerald-500/20 text-emerald-400' :
+              item.deepTestResult.score > 50 ? 'bg-amber-500/20 text-amber-400' :
+              'bg-rose-500/20 text-rose-400'
+            }`}>
+              {item.deepTestResult.score}分
+            </span>
+          )}
+        </div>
+        <div className="text-[10px] text-zinc-500 truncate mt-0.5 font-mono opacity-60 flex items-center gap-2">
+          <span className="truncate">{item.url || '无 (内置/直连)'}</span>
+          {item.deepTestResult && (
+            <span className="shrink-0">
+              流媒体: {item.deepTestResult.streamTime < 5000 ? `${item.deepTestResult.streamTime}ms` : '超时'}
+            </span>
+          )}
+        </div>
       </div>
     </label>
-    {!['default', 'none', 'dplayer'].includes(item.id) && (
+    {!['default', 'none', 'dplayer', 'dbzy99'].includes(item.id) && (
       <button
         type="button"
         onClick={() => onDelete(item.id)}
-        className="p-2 text-zinc-600 hover:text-rose-500 transition-colors shrink-0 ml-2"
+        className="p-3 text-zinc-600 hover:text-rose-500 transition-colors shrink-0 ml-1 -mr-1"
         title="删除"
       >
-        <Trash2 className="w-3.5 h-3.5" />
+        <Trash2 className="w-4 h-4" />
       </button>
     )}
   </div>
@@ -193,6 +212,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   
   const [syncing, setSyncing] = useState(false);
   const [testingSpeed, setTestingSpeed] = useState(false);
+  const [deepTesting, setDeepTesting] = useState(false);
+  const [deepTestProgress, setDeepTestProgress] = useState('');
   const [saved, setSaved] = useState(false);
   const isInitialMount = useRef(true);
 
@@ -270,6 +291,38 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleDeepTestAll = async () => {
+    if (!window.confirm('深度测速会测试所有源的搜索、详情和真实播放速度，可能需要几分钟时间。是否继续？')) return;
+    setDeepTesting(true);
+    try {
+      const currentSources = getEffectiveSources();
+      const newSources = [...currentSources];
+      
+      for (let i = 0; i < newSources.length; i++) {
+        setDeepTestProgress(`正在测试 ${i + 1}/${newSources.length}: ${newSources[i].name}`);
+        const result = await runDeepTest(newSources[i]);
+        newSources[i] = { ...newSources[i], deepTestResult: result };
+        setSourcesState([...newSources]); // Update UI progressively
+      }
+      
+      // Sort by score
+      newSources.sort((a, b) => (b.deepTestResult?.score || 0) - (a.deepTestResult?.score || 0));
+      setSourcesState(newSources);
+      
+      if (newSources.length > 0 && newSources[0].deepTestResult && newSources[0].deepTestResult.score > 0) {
+        setActiveSourceIdState(newSources[0].id);
+        alert(`深度测速完成！已为您自动选取综合评分最高的线路: ${newSources[0].name}`);
+      } else {
+        alert('深度测速完成，但似乎没有找到可用的线路。');
+      }
+    } catch (e) {
+      alert('测速过程中发生错误');
+    } finally {
+      setDeepTesting(false);
+      setDeepTestProgress('');
+    }
+  };
+
   const handleClearData = () => {
     if (window.confirm('确定要清除所有本地数据吗？这包括您的播放历史和收藏记录。')) {
       localStorage.clear();
@@ -289,12 +342,12 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-5xl h-full sm:h-[85vh] bg-zinc-950 border-0 sm:border sm:border-white/10 sm:rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-500"
+        className="w-full max-w-5xl h-[100dvh] sm:h-[85vh] bg-zinc-950 border-0 sm:border sm:border-white/10 sm:rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-500"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sidebar */}
-        <div className="w-full md:w-72 bg-zinc-900/30 border-b md:border-b-0 md:border-r border-white/5 flex flex-col shrink-0">
-          <div className="p-6 sm:p-8 pb-4">
+        <div className="w-full md:w-72 bg-zinc-900/30 border-b md:border-b-0 md:border-r border-white/5 flex flex-col shrink-0 z-10">
+          <div className="p-4 sm:p-8 pb-2 sm:pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-8">
             <div className="flex items-center justify-between md:justify-start gap-3 mb-2">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/5 rounded-xl">
@@ -306,18 +359,18 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 onClick={onClose}
                 className="md:hidden p-2 bg-white/5 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest ml-1 hidden sm:block">Configuration</p>
           </div>
 
-          <nav className="p-4 space-y-1 overflow-x-auto md:overflow-x-visible flex md:flex-col no-scrollbar border-b border-white/5 md:border-b-0">
+          <nav className="p-2 sm:p-4 space-x-2 md:space-x-0 md:space-y-1 overflow-x-auto md:overflow-x-visible flex md:flex-col no-scrollbar border-b border-white/5 md:border-b-0 shrink-0">
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group shrink-0 md:shrink ${
+                className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl transition-all duration-300 group shrink-0 md:shrink ${
                   activeTab === tab.id 
                     ? 'bg-white text-black shadow-xl scale-[1.02]' 
                     : 'text-zinc-400 hover:bg-white/5 hover:text-white'
@@ -341,7 +394,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-black/20 relative">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-black/20 relative">
           <button
             onClick={onClose}
             className="absolute top-6 right-6 z-10 p-2 bg-white/5 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all active:scale-95 hidden md:block"
@@ -350,17 +403,17 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             <X className="w-5 h-5" />
           </button>
           
-          <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar overscroll-contain">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar overscroll-contain">
             {activeTab === 'source' && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-rose-500/10 rounded-xl">
+                <div className="flex items-center justify-between gap-4 p-4 sm:p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-2.5 bg-rose-500/10 rounded-xl shrink-0">
                       <Database className="w-5 h-5 text-rose-400" />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-white tracking-tight">全量采集源</h3>
-                      <p className="text-xs text-zinc-500 mt-0.5">加载全部 80+ 采集源，关闭则仅加载 10+ 精简源以提升效率</p>
+                      <p className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 leading-tight">加载全部 80+ 采集源，关闭则仅加载 10+ 精简源以提升效率</p>
                     </div>
                   </div>
                   <button
@@ -391,23 +444,35 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                   namePlaceholder="源名称 (如: 卧龙资源)"
                   urlPlaceholder="接口地址 (需支持 JSON)"
                   extraActions={
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+                      <button
+                        onClick={handleDeepTestAll}
+                        disabled={deepTesting}
+                        className="px-3 py-2 sm:px-4 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-none justify-center"
+                      >
+                        {deepTesting ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Zap className="w-3.5 h-3.5" />
+                        )}
+                        {deepTesting ? deepTestProgress || '深度测速中...' : '深度测速'}
+                      </button>
                       <button
                         onClick={handleAutoSelect}
                         disabled={testingSpeed}
-                        className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
+                        className="px-3 py-2 sm:px-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-none justify-center"
                       >
                         {testingSpeed ? (
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <Zap className="w-3.5 h-3.5" />
                         )}
-                        {testingSpeed ? '测速中...' : '智能选取'}
+                        {testingSpeed ? '测速中...' : '快速选取'}
                       </button>
                       <button
                         onClick={() => handleSync('jin18')}
                         disabled={syncing}
-                        className="px-4 py-2 bg-white/5 text-white border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
+                        className="px-3 py-2 sm:px-4 bg-white/5 text-white border border-white/10 rounded-xl hover:bg-white/10 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-none justify-center"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                         精简同步
@@ -415,7 +480,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                       <button
                         onClick={() => handleSync('full')}
                         disabled={syncing}
-                        className="px-4 py-2 bg-zinc-900 text-zinc-400 border border-white/5 rounded-xl hover:bg-zinc-800 hover:text-white transition-all disabled:opacity-50 text-xs font-bold"
+                        className="px-3 py-2 sm:px-4 bg-zinc-900 text-zinc-400 border border-white/5 rounded-xl hover:bg-zinc-800 hover:text-white transition-all disabled:opacity-50 text-xs font-bold flex-1 sm:flex-none justify-center"
                       >
                         全量
                       </button>
@@ -528,13 +593,13 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Footer */}
-          <div className="px-10 py-6 border-t border-white/5 bg-zinc-900/50 flex items-center justify-between">
-            <p className="text-[10px] text-zinc-600 font-medium max-w-[200px] md:max-w-none">
+          <div className="px-4 py-4 sm:px-6 md:px-10 md:py-6 border-t border-white/5 bg-zinc-900/50 flex items-center justify-between shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6">
+            <p className="text-[10px] text-zinc-600 font-medium max-w-[150px] sm:max-w-[200px] md:max-w-none leading-tight">
               Settings are stored locally in your browser.
             </p>
             <button
               onClick={onClose}
-              className="px-8 py-3 bg-white text-black rounded-2xl text-sm font-black hover:bg-zinc-200 transition-all shadow-xl active:scale-95"
+              className="px-6 py-2.5 sm:px-8 sm:py-3 bg-white text-black rounded-xl sm:rounded-2xl text-sm font-black hover:bg-zinc-200 transition-all shadow-xl active:scale-95 shrink-0"
             >
               完成并关闭
             </button>
