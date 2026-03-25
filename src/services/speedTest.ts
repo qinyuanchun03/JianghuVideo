@@ -1,15 +1,32 @@
 import { ConfigItem, DeepTestResult } from './maccms';
 
-const TEST_KEYWORDS = ["柯南", "斗破苍穹", "火影", "宝可梦", "瑞克和莫蒂"];
+const TEST_KEYWORDS = ["柯南", "斗破苍穹", "火影", "宝可梦", "瑞克和莫蒂", "海贼王", "进击的巨人"];
 
-// Weights inspired by yingsu
-const WEIGHTS = {
-  searchTime: 0.10,
-  detailTime: 0.05,
-  streamTime: 0.50,
-  successRate: 0.20,
-  resultCount: 0.15
+// 测速配置
+const CONFIG = {
+  timeout: 8000, // 8秒超时
+  retries: 1,    // 失败重试次数
+  testCount: 3,  // 每次测试3个关键词
 };
+
+// 权重配置 (可根据需要调整)
+const WEIGHTS = {
+  searchTime: 0.15,
+  detailTime: 0.10,
+  streamTime: 0.40,
+  successRate: 0.25,
+  resultCount: 0.10
+};
+
+// 辅助函数：带重试的 fetch
+async function fetchWithRetry(url: string, options: RequestInit, retries = CONFIG.retries): Promise<Response> {
+  try {
+    return await fetch(url, options);
+  } catch (e) {
+    if (retries > 0) return fetchWithRetry(url, options, retries - 1);
+    throw e;
+  }
+}
 
 export async function runDeepTest(source: ConfigItem): Promise<DeepTestResult> {
   let successCount = 0;
@@ -19,8 +36,7 @@ export async function runDeepTest(source: ConfigItem): Promise<DeepTestResult> {
   let totalResultCount = 0;
   let validStreamTests = 0;
   
-  const testCount = 2; // Test 2 random keywords to save time in browser
-  const keywordsToTest = [...TEST_KEYWORDS].sort(() => 0.5 - Math.random()).slice(0, testCount);
+  const keywordsToTest = [...TEST_KEYWORDS].sort(() => 0.5 - Math.random()).slice(0, CONFIG.testCount);
 
   for (const keyword of keywordsToTest) {
     try {
@@ -30,46 +46,49 @@ export async function runDeepTest(source: ConfigItem): Promise<DeepTestResult> {
       searchUrl.searchParams.set('ac', 'detail');
       searchUrl.searchParams.set('wd', keyword);
       
-      const searchRes = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(10000) });
+      const searchRes = await fetchWithRetry(searchUrl.toString(), { signal: AbortSignal.timeout(CONFIG.timeout) });
       const searchData = await searchRes.json();
       const searchTime = performance.now() - searchStart;
       
-      if (!searchData.list || searchData.list.length === 0) {
-        continue; // No results, but not a failure of the API itself
-      }
+      if (!searchData.list || searchData.list.length === 0) continue;
       
       totalSearchTime += searchTime;
       totalResultCount += searchData.list.length;
       
-      // 2. Detail Test (using the first result)
+      // 2. Detail Test
       const firstVideo = searchData.list[0];
       const detailStart = performance.now();
       const detailUrl = new URL(source.url);
       detailUrl.searchParams.set('ac', 'detail');
       detailUrl.searchParams.set('ids', firstVideo.vod_id.toString());
       
-      const detailRes = await fetch(detailUrl.toString(), { signal: AbortSignal.timeout(10000) });
+      const detailRes = await fetchWithRetry(detailUrl.toString(), { signal: AbortSignal.timeout(CONFIG.timeout) });
       const detailData = await detailRes.json();
       const detailTime = performance.now() - detailStart;
       
       totalDetailTime += detailTime;
       
-      // 3. Stream Test
-      if (detailData.list && detailData.list[0] && detailData.list[0].vod_play_url) {
-        const playUrls = detailData.list[0].vod_play_url.split('$$$')[0].split('#');
-        if (playUrls.length > 0) {
-          const firstPlayUrl = playUrls[0].split('$')[1];
-          if (firstPlayUrl && firstPlayUrl.startsWith('http')) {
-            const streamStart = performance.now();
-            try {
-              // We use no-cors because m3u8 files are often on different domains without CORS headers
-              // We just want to measure the time it takes to get a response (or fail)
-              await fetch(firstPlayUrl, { mode: 'no-cors', signal: AbortSignal.timeout(10000) });
-              const streamTime = performance.now() - streamStart;
-              totalStreamTime += streamTime;
-              validStreamTests++;
-            } catch (e) {
-              // Stream fetch failed
+      // 3. Stream Test (更严格的校验)
+      if (detailData.list?.[0]?.vod_play_url) {
+        // 尝试获取第一个可用的播放地址
+        const playUrlStr = detailData.list[0].vod_play_url;
+        const playUrls = playUrlStr.split('$$$');
+        
+        for (const group of playUrls) {
+          const urls = group.split('#');
+          if (urls.length > 0) {
+            const firstPlayUrl = urls[0].split('$')[1];
+            if (firstPlayUrl?.startsWith('http')) {
+              const streamStart = performance.now();
+              try {
+                // HEAD 请求校验地址有效性
+                await fetch(firstPlayUrl, { method: 'HEAD', mode: 'no-cors', signal: AbortSignal.timeout(CONFIG.timeout) });
+                totalStreamTime += (performance.now() - streamStart);
+                validStreamTests++;
+                break; // 找到一个有效地址即可
+              } catch (e) {
+                // 继续尝试下一个
+              }
             }
           }
         }
@@ -77,30 +96,27 @@ export async function runDeepTest(source: ConfigItem): Promise<DeepTestResult> {
       
       successCount++;
     } catch (e) {
-      // Request failed
+      console.warn(`[DeepTest] Source ${source.name} failed for keyword ${keyword}:`, e);
     }
   }
 
-  const successRate = (successCount / testCount) * 100;
+  // 计算评分
+  const successRate = (successCount / keywordsToTest.length) * 100;
   
   if (successCount === 0) {
-    return {
-      searchTime: 0, detailTime: 0, streamTime: 0, successRate: 0, resultCount: 0, score: 0, lastTested: Date.now()
-    };
+    return { searchTime: 0, detailTime: 0, streamTime: 0, successRate: 0, resultCount: 0, score: 0, lastTested: Date.now() };
   }
 
   const avgSearchTime = totalSearchTime / successCount;
   const avgDetailTime = totalDetailTime / successCount;
-  const avgStreamTime = validStreamTests > 0 ? totalStreamTime / validStreamTests : 5000; // Penalty if no stream
+  const avgStreamTime = validStreamTests > 0 ? totalStreamTime / validStreamTests : 8000;
   const avgResultCount = totalResultCount / successCount;
 
-  // Calculate Score (0-100)
-  // Lower time is better. 
-  // Max expected times: search 3000ms, detail 2000ms, stream 5000ms
-  const searchScore = Math.max(0, 100 - (avgSearchTime / 3000) * 100);
-  const detailScore = Math.max(0, 100 - (avgDetailTime / 2000) * 100);
-  const streamScore = Math.max(0, 100 - (avgStreamTime / 5000) * 100);
-  const resultScore = Math.min(100, (avgResultCount / 20) * 100); // 20 results is good
+  // 评分算法：归一化并加权
+  const searchScore = Math.max(0, 100 - (avgSearchTime / 4000) * 100);
+  const detailScore = Math.max(0, 100 - (avgDetailTime / 3000) * 100);
+  const streamScore = Math.max(0, 100 - (avgStreamTime / 6000) * 100);
+  const resultScore = Math.min(100, (avgResultCount / 10) * 100); // 10个结果即满分
 
   const finalScore = 
     (searchScore * WEIGHTS.searchTime) +

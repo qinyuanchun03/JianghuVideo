@@ -527,19 +527,11 @@ export async function searchAllSources(wd: string): Promise<{ sourceId: string; 
     const sourceA = sources.find(s => s.id === a.sourceId);
     const sourceB = sources.find(s => s.id === b.sourceId);
     
-    const scoreA = sourceA?.deepTestResult?.score;
-    const scoreB = sourceB?.deepTestResult?.score;
+    const timeA = (sourceA?.deepTestResult?.searchTime || 9999) + (sourceA?.deepTestResult?.detailTime || 9999) + (sourceA?.deepTestResult?.streamTime || 9999);
+    const timeB = (sourceB?.deepTestResult?.searchTime || 9999) + (sourceB?.deepTestResult?.detailTime || 9999) + (sourceB?.deepTestResult?.streamTime || 9999);
     
-    // If both have scores, sort by score descending
-    if (scoreA !== undefined && scoreB !== undefined) {
-      return scoreB - scoreA;
-    }
-    // If only one has a score, prioritize it
-    if (scoreA !== undefined) return -1;
-    if (scoreB !== undefined) return 1;
-    
-    // Fallback to ping
-    return a.ping - b.ping;
+    if (timeA !== timeB) return timeA - timeB;
+    return (sourceB?.deepTestResult?.score || 0) - (sourceA?.deepTestResult?.score || 0);
   });
 }
 

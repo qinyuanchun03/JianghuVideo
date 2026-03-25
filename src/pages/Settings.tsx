@@ -63,11 +63,6 @@ const ConfigItemRow = memo(({
         </div>
         <div className="text-[10px] text-zinc-500 truncate mt-0.5 font-mono opacity-60 flex items-center gap-2">
           <span className="truncate">{item.url || '无 (内置/直连)'}</span>
-          {item.deepTestResult && (
-            <span className="shrink-0">
-              流媒体: {item.deepTestResult.streamTime < 5000 ? `${item.deepTestResult.streamTime}ms` : '超时'}
-            </span>
-          )}
         </div>
       </div>
     </label>
@@ -305,9 +300,14 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         setSourcesState([...newSources]); // Update UI progressively
       }
       
-      // Sort by score
-      newSources.sort((a, b) => (b.deepTestResult?.score || 0) - (a.deepTestResult?.score || 0));
-      setSourcesState(newSources);
+  // Sort by latency (searchTime + detailTime + streamTime)
+  newSources.sort((a, b) => {
+    const timeA = (a.deepTestResult?.searchTime || 9999) + (a.deepTestResult?.detailTime || 9999) + (a.deepTestResult?.streamTime || 9999);
+    const timeB = (b.deepTestResult?.searchTime || 9999) + (b.deepTestResult?.detailTime || 9999) + (b.deepTestResult?.streamTime || 9999);
+    if (timeA !== timeB) return timeA - timeB;
+    return (b.deepTestResult?.score || 0) - (a.deepTestResult?.score || 0);
+  });
+  setSourcesState(newSources);
       
       if (newSources.length > 0 && newSources[0].deepTestResult && newSources[0].deepTestResult.score > 0) {
         setActiveSourceIdState(newSources[0].id);

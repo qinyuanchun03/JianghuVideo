@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star, Search, ChevronRight, Heart } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Calendar, MapPin, Star, Search, ChevronRight, Heart, Copy } from 'lucide-react';
 import { getVideoDetail, parsePlayUrls, searchAllSources } from '../services/maccms';
 import { MacCMSVideo, PlaySource, Episode } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
@@ -282,6 +282,18 @@ export default function Detail() {
                   <h2 className="text-xl font-bold text-white">
                     正在播放: <span className="text-rose-400">{activeEpisode.name}</span>
                   </h2>
+                  <button 
+                    onClick={() => {
+                        navigator.clipboard.writeText(activeEpisode.url);
+                        alert('资源地址已复制');
+                    }}
+                    className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 bg-white/5 px-3 py-1.5 rounded-full transition-colors"
+                  >
+                    <Copy className="w-3 h-3" /> 复制地址
+                  </button>
+                </div>
+                <div className="text-xs text-zinc-500 font-mono break-all bg-zinc-900/50 p-3 rounded-lg border border-white/5">
+                    {activeEpisode.url}
                 </div>
               </div>
             ) : (
