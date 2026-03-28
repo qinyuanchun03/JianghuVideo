@@ -150,6 +150,83 @@ async function startServer() {
     }
   });
 
+  // Proxy M3U8 route for ad filtering and relative URL resolution
+  app.get("/api/proxy/m3u8", async (req, res) => {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl) return res.status(400).json({ error: "Missing url parameter" });
+
+    try {
+      const response = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': new URL(targetUrl).origin,
+          'Origin': new URL(targetUrl).origin
+        }
+      });
+      if (!response.ok) return res.status(response.status).send("Failed to fetch M3U8");
+      
+      let m3u8Content = await response.text();
+      const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
+      
+      // Only filter if it looks like an M3U8
+      if (m3u8Content.includes('#EXTM3U')) {
+        const lines = m3u8Content.split('\n');
+        const filteredLines: string[] = [];
+        let skipNext = false;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Ad filtering logic (based on common patterns and discontinuity)
+          const isAdPattern = /.*ad.*\.ts/i.test(line) || 
+                             /.*ad.*\.m3u8/i.test(line) || 
+                             /.*\.ad\..*/i.test(line) ||
+                             /.*\.doubleclick\..*/i.test(line) ||
+                             /.*\.googlesyndication\..*/i.test(line) ||
+                             /.*\.ads\..*/i.test(line);
+
+          if (isAdPattern) {
+            // If the current line is an ad URL, we skip it and its metadata
+            // Usually metadata like #EXTINF precedes the URL
+            if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1].startsWith('#EXTINF')) {
+              filteredLines.pop();
+            }
+            continue;
+          }
+
+          // Resolve relative URLs
+          if (line.startsWith('#')) {
+            // Handle tags that might contain URLs, like #EXT-X-KEY:URI="..."
+            if (line.includes('URI="')) {
+              const newLine = line.replace(/URI="([^"]+)"/, (match, p1) => {
+                if (p1.startsWith('http')) return match;
+                return `URI="${new URL(p1, baseUrl).toString()}"`;
+              });
+              filteredLines.push(newLine);
+            } else {
+              filteredLines.push(line);
+            }
+          } else {
+            // This is a segment URL
+            if (line.startsWith('http')) {
+              filteredLines.push(line);
+            } else {
+              filteredLines.push(new URL(line, baseUrl).toString());
+            }
+          }
+        }
+        m3u8Content = filteredLines.join('\n');
+      }
+      
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.send(m3u8Content);
+    } catch (e: any) {
+      console.error("[Proxy M3U8] Error:", e.message);
+      res.status(500).send("Proxy error");
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

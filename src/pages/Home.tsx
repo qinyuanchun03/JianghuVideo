@@ -11,7 +11,7 @@ const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
     target="_blank"
     className="group relative flex flex-col gap-3 w-full"
   >
-    <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5">
+    <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-bg-card border border-border-main">
       <img 
         src={video.vod_pic || null} 
         alt={video.vod_name}
@@ -28,17 +28,17 @@ const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
         </div>
       )}
       {video.source_name && (
-        <div className="absolute top-2 left-2 bg-rose-600/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-md font-medium flex items-center gap-1">
+        <div className="absolute top-2 left-2 bg-bg-accent/80 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-md font-medium flex items-center gap-1">
           {video.source_name}
           {video._ping && <span className="opacity-60 font-mono">| {video._ping}ms</span>}
         </div>
       )}
     </div>
     <div>
-      <h3 className="text-white font-medium text-sm md:text-base line-clamp-1 group-hover:text-rose-400 transition-colors">
+      <h3 className="text-text-main font-medium text-sm md:text-base line-clamp-1 group-hover:text-bg-accent transition-colors">
         {video.vod_name}
       </h3>
-      <p className="text-zinc-500 text-xs mt-1 line-clamp-1">
+      <p className="text-text-muted text-xs mt-1 line-clamp-1">
         {video.vod_year} • {video.vod_class || video.type_name}
       </p>
     </div>
@@ -255,7 +255,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen pb-20 bg-[#0a0a0a]">
+    <div className={`min-h-screen bg-bg-main ${!isHomeMode ? 'pt-20' : ''}`}>
       {isHomeMode && featuredVideo && (
         <div className="relative w-full h-[70vh] md:h-[85vh] mb-8">
           <div className="absolute inset-0">
@@ -266,24 +266,24 @@ export default function Home() {
               referrerPolicy="no-referrer" 
               loading="lazy"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-main via-bg-main/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-bg-main via-bg-main/50 to-transparent" />
           </div>
-          <div className="absolute bottom-0 left-0 w-full px-4 pb-12 md:px-12 md:pb-24 max-w-7xl mx-auto">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 drop-shadow-lg">{featuredVideo.vod_name}</h1>
-            <div className="flex items-center gap-4 text-sm text-zinc-200 mb-6 drop-shadow">
+          <div className="absolute bottom-0 left-0 right-0 px-4 pb-12 md:px-20 lg:px-32 md:pb-24 max-w-7xl mx-auto">
+            <h1 className="text-4xl md:text-6xl font-bold text-text-main mb-4 drop-shadow-lg">{featuredVideo.vod_name}</h1>
+            <div className="flex items-center gap-4 text-sm text-text-muted mb-6 drop-shadow">
               {featuredVideo.vod_score && featuredVideo.vod_score !== '0.0' && (
-                <span className="flex items-center gap-1 text-amber-400 font-medium"><Star className="w-4 h-4 fill-current" /> {featuredVideo.vod_score}</span>
+                <span className="flex items-center gap-1 text-bg-accent font-medium"><Star className="w-4 h-4 fill-current" /> {featuredVideo.vod_score}</span>
               )}
               <span>{featuredVideo.vod_year}</span>
               <span>{featuredVideo.vod_class || featuredVideo.type_name}</span>
             </div>
-            <p className="text-zinc-300 text-sm md:text-base line-clamp-3 mb-8 max-w-2xl drop-shadow" dangerouslySetInnerHTML={{ __html: featuredVideo.vod_content?.replace(/<[^>]+>/g, '') || '' }} />
+            <p className="text-text-muted text-sm md:text-base line-clamp-3 mb-8 max-w-2xl drop-shadow" dangerouslySetInnerHTML={{ __html: featuredVideo.vod_content?.replace(/<[^>]+>/g, '') || '' }} />
             <div className="flex gap-4">
               <Link 
                 to={`/video/${featuredVideo.vod_id}`} 
                 target="_blank"
-                className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-zinc-200 transition-colors"
+                className="flex items-center gap-2 bg-text-main text-bg-main px-8 py-3 rounded-full font-bold hover:opacity-90 transition-colors"
               >
                 <Play className="w-5 h-5 fill-current" /> 立即播放
               </Link>
@@ -292,7 +292,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className={`max-w-7xl mx-auto px-4 ${!isHomeMode ? 'pt-24' : ''}`}>
+      <div className="max-w-7xl mx-auto px-4">
         {/* Categories */}
         {categories.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-6 scrollbar-hide snap-x mb-4">
@@ -300,8 +300,8 @@ export default function Home() {
               onClick={() => handleCategoryClick(undefined)}
               className={`snap-start whitespace-nowrap px-5 py-2 rounded-full text-sm font-medium transition-colors border ${
                 activeCategory === undefined && !searchQuery
-                  ? 'bg-rose-600 text-white border-rose-600'
-                  : 'bg-zinc-900/50 text-zinc-400 border-white/5 hover:bg-zinc-800 hover:text-white'
+                  ? 'bg-bg-accent text-white border-bg-accent'
+                  : 'bg-bg-card/50 text-text-muted border-border-main hover:bg-bg-card hover:text-text-main'
               }`}
             >
               首页推荐
@@ -312,8 +312,8 @@ export default function Home() {
                 onClick={() => handleCategoryClick(cat.type_id)}
                 className={`snap-start whitespace-nowrap px-5 py-2 rounded-full text-sm font-medium transition-colors border ${
                   activeCategory === cat.type_id
-                    ? 'bg-rose-600 text-white border-rose-600'
-                    : 'bg-zinc-900/50 text-zinc-400 border-white/5 hover:bg-zinc-800 hover:text-white'
+                    ? 'bg-bg-accent text-white border-bg-accent'
+                    : 'bg-bg-card/50 text-text-muted border-border-main hover:bg-bg-card hover:text-text-main'
                 }`}
               >
                 {cat.type_name}
@@ -324,9 +324,9 @@ export default function Home() {
 
         {error && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <AlertCircle className="w-12 h-12 text-rose-500 mb-4" />
-            <h3 className="text-xl font-medium text-white mb-2">获取数据失败</h3>
-            <p className="text-zinc-400 max-w-md">{error}</p>
+            <AlertCircle className="w-12 h-12 text-bg-accent mb-4" />
+            <h3 className="text-xl font-medium text-text-main mb-2">获取数据失败</h3>
+            <p className="text-text-muted max-w-md">{error}</p>
           </div>
         )}
 
@@ -334,14 +334,14 @@ export default function Home() {
         {!error && isHomeMode ? (
           /* Home Mode: Carousels */
           isHomeLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-rose-500 animate-spin" /></div>
+            <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-bg-accent animate-spin" /></div>
           ) : (
             <div className="space-y-10">
               {/* Personalized Recommendations */}
               {recommendedVideos.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-orange-400">猜你喜欢</h2>
+                    <h2 className="text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-bg-accent to-orange-400">猜你喜欢</h2>
                   </div>
                   <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
                     {recommendedVideos.map(video => (
@@ -356,13 +356,13 @@ export default function Home() {
               {Object.entries(groupedVideos).map(([categoryName, vids]) => (
                 <div key={categoryName}>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl md:text-2xl font-bold text-white">{categoryName}</h2>
+                    <h2 className="text-xl md:text-2xl font-bold text-text-main">{categoryName}</h2>
                     <button
                       onClick={() => {
                         const cat = categories.find(c => c.type_name === categoryName);
                         if (cat) handleCategoryClick(cat.type_id);
                       }}
-                      className="text-sm text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
+                      className="text-sm text-text-muted hover:text-text-main flex items-center gap-1 transition-colors"
                     >
                       查看全部 <ChevronRight className="w-4 h-4" />
                     </button>
@@ -383,8 +383,8 @@ export default function Home() {
           <>
             {searchQuery && (
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-white">
-                  搜索结果: <span className="text-rose-500">{searchQuery}</span>
+                <h2 className="text-xl font-bold text-text-main">
+                  搜索结果: <span className="text-bg-accent">{searchQuery}</span>
                 </h2>
               </div>
             )}
@@ -396,15 +396,15 @@ export default function Home() {
 
             {gridLoading && (
               <div className="flex justify-center py-12">
-                <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+                <Loader2 className="w-8 h-8 text-bg-accent animate-spin" />
               </div>
             )}
 
             {!gridLoading && gridVideos.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <Search className="w-16 h-16 text-zinc-700 mb-4" />
-                <h3 className="text-xl font-medium text-white mb-2">未找到相关内容</h3>
-                <p className="text-zinc-500 max-w-sm">
+                <Search className="w-16 h-16 text-text-muted/30 mb-4" />
+                <h3 className="text-xl font-medium text-text-main mb-2">未找到相关内容</h3>
+                <p className="text-text-muted max-w-sm">
                   尝试更换关键词或在设置中切换其他订阅源。
                 </p>
                 <button 
@@ -412,7 +412,7 @@ export default function Home() {
                     setSearchParams({});
                     setActiveCategory(undefined);
                   }}
-                  className="mt-6 px-6 py-2 bg-white/5 hover:bg-white/10 text-white rounded-full transition-colors border border-white/5"
+                  className="mt-6 px-6 py-2 bg-bg-card/50 hover:bg-bg-card text-text-main rounded-full transition-colors border border-border-main"
                 >
                   返回首页推荐
                 </button>
@@ -423,7 +423,7 @@ export default function Home() {
               <div className="flex justify-center mt-12">
                 <button
                   onClick={() => setPage(p => p + 1)}
-                  className="px-8 py-3 rounded-full border border-white/10 text-white hover:bg-white/5 transition-colors font-medium"
+                  className="px-8 py-3 rounded-full border border-border-main text-text-main hover:bg-bg-card/50 transition-colors font-medium"
                 >
                   加载更多
                 </button>

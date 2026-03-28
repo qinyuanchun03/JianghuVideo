@@ -92,9 +92,37 @@ export const deleteHistory = async (id: string) => {
   return await pb.collection('history').delete(id, { $autoCancel: false });
 };
 
+// Clear all history for current user
+export const clearHistory = async () => {
+  if (!isUserLoggedIn()) return;
+  const userId = getCurrentUserId();
+  const records = await pb.collection('history').getFullList({
+    filter: `user = "${userId}"`,
+    $autoCancel: false,
+  });
+  
+  // PocketBase doesn't have a "delete all" by filter, so we delete each
+  const deletePromises = records.map(record => pb.collection('history').delete(record.id, { $autoCancel: false }));
+  return await Promise.all(deletePromises);
+};
+
 // Delete a favorite record
 export const deleteFavorite = async (id: string) => {
   return await pb.collection('favorites').delete(id, { $autoCancel: false });
+};
+
+// Remove from favorites by vod_id
+export const removeFromFavorites = async (vod_id: string) => {
+  if (!isUserLoggedIn()) return;
+  const userId = getCurrentUserId();
+  try {
+    const existing = await pb.collection('favorites').getFirstListItem(`user="${userId}" && vod_id="${vod_id}"`, {
+      $autoCancel: false,
+    });
+    return await pb.collection('favorites').delete(existing.id, { $autoCancel: false });
+  } catch (e) {
+    return null;
+  }
 };
 
 // Save or update history

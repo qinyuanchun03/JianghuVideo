@@ -180,7 +180,7 @@ export default function Detail() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+        <Loader2 className="w-10 h-10 text-bg-accent animate-spin" />
       </div>
     );
   }
@@ -188,18 +188,18 @@ export default function Detail() {
   if (error || !video) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
-        <h2 className="text-2xl font-bold text-white mb-4">出错了</h2>
-        <p className="text-zinc-400 mb-8">{error || '影片不存在'}</p>
+        <h2 className="text-2xl font-bold text-text-main mb-4">出错了</h2>
+        <p className="text-text-muted mb-8">{error || '影片不存在'}</p>
         <div className="flex gap-4">
           <button 
             onClick={() => navigate(-1)}
-            className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+            className="px-6 py-2 bg-bg-card hover:bg-bg-card/80 text-text-main rounded-full transition-colors border border-border-main"
           >
             返回上一页
           </button>
           <button 
             onClick={() => navigate('/')}
-            className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-full transition-colors"
+            className="px-6 py-2 bg-bg-accent hover:opacity-90 text-white rounded-full transition-colors"
           >
             回到首页
           </button>
@@ -223,17 +223,17 @@ export default function Detail() {
       });
       setIsFav(result);
     } catch (e: any) {
-      alert(e.message);
+      console.error(e.message);
     }
   };
 
   const activeSource = sources[activeSourceIndex];
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen">
       {/* Top Navigation */}
-      <div className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div className="sticky top-0 z-50 bg-bg-main/80 backdrop-blur-xl border-b border-border-main h-20 flex items-center px-6">
+        <div className="w-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <button 
               onClick={() => {
@@ -243,16 +243,18 @@ export default function Detail() {
                   navigate('/');
                 }
               }}
-              className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-colors"
+              className="p-2.5 bg-bg-card/50 border border-border-main rounded-xl text-text-muted hover:text-text-main transition-all"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-lg font-medium text-white line-clamp-1">{video.vod_name}</h1>
+            <h1 className="text-xl font-bold text-text-main line-clamp-1 tracking-tight">{video.vod_name}</h1>
           </div>
           <button
             onClick={handleToggleFavorite}
-            className={`p-2 rounded-full transition-all active:scale-90 ${
-              isFav ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+            className={`p-2.5 rounded-xl transition-all active:scale-90 border ${
+              isFav 
+                ? 'bg-bg-accent border-bg-accent text-white shadow-lg shadow-bg-accent/20' 
+                : 'bg-bg-card/50 border-border-main text-text-muted hover:text-text-main hover:bg-bg-card'
             }`}
             title={isFav ? '取消收藏' : '加入收藏'}
           >
@@ -263,50 +265,51 @@ export default function Detail() {
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
 
-      <div className="max-w-7xl mx-auto px-4 pt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto sm:px-4 pt-0 sm:pt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 sm:gap-8">
           
           {/* Left Column: Player & Metadata */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-6 sm:space-y-8">
             {/* Player */}
             {activeEpisode ? (
               <div className="space-y-4">
-                <VideoPlayer 
-                  key={activeEpisode.url} 
-                  url={activeEpisode.url} 
-                  poster={video.vod_pic}
-                  initialProgress={initialProgress}
-                  onProgress={handleProgress}
-                />
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-white">
-                    正在播放: <span className="text-rose-400">{activeEpisode.name}</span>
+                <div className="sm:rounded-xl overflow-hidden">
+                  <VideoPlayer 
+                    key={activeEpisode.url} 
+                    url={`/api/proxy/m3u8?url=${encodeURIComponent(activeEpisode.url)}`} 
+                    poster={video.vod_pic}
+                    initialProgress={initialProgress}
+                    onProgress={handleProgress}
+                  />
+                </div>
+                <div className="flex items-center justify-between px-4 sm:px-0">
+                  <h2 className="text-lg sm:text-xl font-bold text-text-main">
+                    正在播放: <span className="text-bg-accent">{activeEpisode.name}</span>
                   </h2>
                   <button 
                     onClick={() => {
                         navigator.clipboard.writeText(activeEpisode.url);
-                        alert('资源地址已复制');
                     }}
-                    className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 bg-white/5 px-3 py-1.5 rounded-full transition-colors"
+                    className="text-[10px] sm:text-xs text-text-muted hover:text-text-main flex items-center gap-1 bg-bg-card px-3 py-1.5 rounded-full transition-colors border border-border-main"
                   >
-                    <Copy className="w-3 h-3" /> 复制地址
+                    <padding className="w-3 h-3" /> 复制地址
                   </button>
                 </div>
-                <div className="text-xs text-zinc-500 font-mono break-all bg-zinc-900/50 p-3 rounded-lg border border-white/5">
+                <div className="mx-4 sm:mx-0 text-[10px] sm:text-xs text-text-muted font-mono break-all bg-bg-card/50 p-3 rounded-lg border border-border-main">
                     {activeEpisode.url}
                 </div>
               </div>
             ) : (
-              <div className="w-full aspect-video bg-zinc-900 rounded-xl flex items-center justify-center border border-white/5">
-                <p className="text-zinc-500">暂无播放源</p>
+              <div className="w-full aspect-video bg-bg-card sm:rounded-xl flex items-center justify-center border border-border-main">
+                <p className="text-text-muted">暂无播放源</p>
               </div>
             )}
 
-            {/* Metadata (Moved from right) */}
-            <div className="space-y-6">
+            {/* Metadata */}
+            <div className="space-y-6 px-4 sm:px-0">
               <div className="flex gap-6">
                 <div className="w-1/4 sm:w-1/5 shrink-0">
-                  <div className="aspect-[3/4] rounded-xl overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl">
+                  <div className="aspect-[3/4] rounded-xl overflow-hidden bg-bg-card border border-border-main shadow-2xl">
                     <img 
                       src={video.vod_pic || null} 
                       alt={video.vod_name}
@@ -317,16 +320,16 @@ export default function Detail() {
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h1 className="text-2xl md:text-3xl font-bold text-white leading-tight">
+                  <h1 className="text-2xl md:text-3xl font-bold text-text-main leading-tight">
                     {video.vod_name}
                   </h1>
                   {video.vod_remarks && (
-                    <span className="inline-block bg-white/10 text-white text-xs px-2.5 py-1 rounded-md font-medium">
+                    <span className="inline-block bg-bg-accent/10 text-bg-accent text-xs px-2.5 py-1 rounded-md font-medium">
                       {video.vod_remarks}
                     </span>
                   )}
                   
-                  <div className="space-y-2 text-sm text-zinc-400 pt-2">
+                  <div className="space-y-2 text-sm text-text-muted pt-2">
                     {video.vod_score && video.vod_score !== '0.0' && (
                       <div className="flex items-center gap-2 text-amber-400 font-medium">
                         <Star className="w-4 h-4 fill-current" />
@@ -355,24 +358,24 @@ export default function Detail() {
                 </div>
               </div>
 
-              <div className="space-y-4 pt-4 border-t border-white/10">
+              <div className="space-y-4 pt-4 border-t border-border-main">
                 {video.vod_director && (
                   <div>
-                    <h4 className="text-zinc-500 text-sm mb-1">导演</h4>
-                    <p className="text-zinc-300 text-sm">{video.vod_director}</p>
+                    <h4 className="text-text-muted text-sm mb-1">导演</h4>
+                    <p className="text-text-main text-sm">{video.vod_director}</p>
                   </div>
                 )}
                 {video.vod_actor && (
                   <div>
-                    <h4 className="text-zinc-500 text-sm mb-1">主演</h4>
-                    <p className="text-zinc-300 text-sm leading-relaxed">{video.vod_actor}</p>
+                    <h4 className="text-text-muted text-sm mb-1">主演</h4>
+                    <p className="text-text-main text-sm leading-relaxed">{video.vod_actor}</p>
                   </div>
                 )}
                 {video.vod_content && (
                   <div>
-                    <h4 className="text-zinc-500 text-sm mb-2">剧情简介</h4>
+                    <h4 className="text-text-muted text-sm mb-2">剧情简介</h4>
                     <div 
-                      className="text-zinc-400 text-sm leading-relaxed prose prose-invert max-w-none"
+                      className="text-text-muted text-sm leading-relaxed prose prose-invert max-w-none"
                       dangerouslySetInnerHTML={{ __html: video.vod_content }}
                     />
                   </div>
@@ -381,31 +384,31 @@ export default function Detail() {
             </div>
           </div>
 
-          {/* Right Column: Episodes & Sources (Moved from left) */}
-          <div className="space-y-6">
+          {/* Right Column: Episodes & Sources */}
+          <div className="space-y-6 px-4 sm:px-0 pb-12">
             {/* Tabs */}
-            <div className="flex gap-6 border-b border-white/10 mb-6">
+            <div className="flex gap-6 border-b border-border-main mb-6">
               <button
                 onClick={() => setActiveTab('episodes')}
                 className={`pb-3 text-lg font-medium transition-colors relative ${
-                  activeTab === 'episodes' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
+                  activeTab === 'episodes' ? 'text-text-main' : 'text-text-muted hover:text-text-main'
                 }`}
               >
                 选集
                 {activeTab === 'episodes' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-bg-accent rounded-t-full" />
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('sources')}
                 className={`pb-3 text-lg font-medium transition-colors relative flex items-center gap-2 ${
-                  activeTab === 'sources' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
+                  activeTab === 'sources' ? 'text-text-main' : 'text-text-muted hover:text-text-main'
                 }`}
               >
                 换源
-                {searchingAlternatives && <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />}
+                {searchingAlternatives && <Loader2 className="w-4 h-4 text-bg-accent animate-spin" />}
                 {activeTab === 'sources' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-bg-accent rounded-t-full" />
                 )}
               </button>
             </div>
@@ -427,8 +430,8 @@ export default function Detail() {
                         }}
                         className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                           activeSourceIndex === idx
-                            ? 'bg-rose-600 text-white'
-                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                            ? 'bg-bg-accent text-white'
+                            : 'bg-bg-card text-text-muted hover:bg-bg-card/80 hover:text-text-main border border-border-main'
                         }`}
                       >
                         {source.sourceName}
@@ -450,8 +453,8 @@ export default function Detail() {
                         }}
                         className={`px-3 py-2.5 rounded-lg text-xs font-medium transition-all truncate ${
                           activeEpisode?.url === ep.url
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50'
-                            : 'bg-zinc-900 text-zinc-400 border border-white/5 hover:bg-zinc-800 hover:text-white'
+                            ? 'bg-bg-accent/20 text-bg-accent border border-bg-accent/50'
+                            : 'bg-bg-card text-text-muted border border-border-main hover:bg-bg-card/80 hover:text-text-main'
                         }`}
                         title={ep.name}
                       >
@@ -466,24 +469,24 @@ export default function Detail() {
             {activeTab === 'sources' && (
               <div className="space-y-4 animate-in fade-in duration-300">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-text-muted">
                     {searchingAlternatives ? '正在全网测速寻源...' : '已按测速结果排序，推荐使用最快的源'}
                   </p>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-3">
                   {/* Current Source */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-bg-accent/10 border border-bg-accent/30">
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                      <span className="text-rose-400 font-medium text-xs">当前: {video.source_name || '默认源'}</span>
+                      <div className="w-2 h-2 rounded-full bg-bg-accent animate-pulse" />
+                      <span className="text-bg-accent font-medium text-xs">当前: {video.source_name || '默认源'}</span>
                     </div>
-                    <span className="text-[10px] text-rose-500/70">使用中</span>
+                    <span className="text-[10px] text-bg-accent/70">使用中</span>
                   </div>
 
                   {/* Alternative Sources */}
                   {!searchingAlternatives && alternativeSources.length === 0 ? (
-                    <div className="p-4 text-center text-zinc-500 text-xs bg-zinc-900/50 rounded-xl border border-white/5">
+                    <div className="p-4 text-center text-text-muted text-xs bg-bg-card/50 rounded-xl border border-border-main">
                       暂无其他可用来源
                     </div>
                   ) : (
@@ -493,17 +496,17 @@ export default function Detail() {
                       
                       let pingColor = 'text-emerald-400';
                       if (alt.ping && alt.ping > 1000) pingColor = 'text-amber-400';
-                      if (alt.ping && alt.ping > 3000) pingColor = 'text-rose-400';
+                      if (alt.ping && alt.ping > 3000) pingColor = 'text-bg-accent';
 
                       return (
                         <Link
                           key={alt.sourceId}
                           to={`/video/${matchedVideo.vod_id}?source=${alt.sourceId}`}
-                          className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-white/5 hover:bg-zinc-800 hover:border-white/10 transition-all group"
+                          className="flex items-center justify-between p-3 rounded-xl bg-bg-card border border-border-main hover:bg-bg-card/80 hover:border-text-muted/30 transition-all group"
                         >
                           <div className="flex items-center gap-3">
-                            <Search className="w-4 h-4 text-zinc-500 group-hover:text-white transition-colors" />
-                            <span className="text-zinc-300 group-hover:text-white text-xs font-medium transition-colors">
+                            <Search className="w-4 h-4 text-text-muted group-hover:text-text-main transition-colors" />
+                            <span className="text-text-muted group-hover:text-text-main text-xs font-medium transition-colors">
                               {alt.sourceName}
                             </span>
                           </div>
@@ -513,7 +516,7 @@ export default function Detail() {
                                 {alt.ping}ms
                               </span>
                             )}
-                            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400" />
+                            <ChevronRight className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted" />
                           </div>
                         </Link>
                       );

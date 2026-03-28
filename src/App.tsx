@@ -1,19 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Film, Search, Loader2, X, User as UserIcon } from 'lucide-react';
-import Home from './pages/Home';
-import Detail from './pages/Detail';
-import Settings from './pages/Settings';
-import UserCenter from './pages/UserCenter';
+import { Settings as SettingsIcon, Film, Search, Loader2, X, User as UserIcon, PlayCircle } from 'lucide-react';
 import { findBestSource, getActiveSourceId, setActiveSourceId } from './services/maccms';
 import { pb } from './services/pocketbase';
+import { Sidebar } from './components/Sidebar';
+import { BottomNav } from './components/BottomNav';
 
-function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
+const Home = lazy(() => import('./pages/Home'));
+const Detail = lazy(() => import('./pages/Detail'));
+const Settings = lazy(() => import('./pages/Settings'));
+const UserCenter = lazy(() => import('./pages/UserCenter'));
+const HistoryPage = lazy(() => import('./pages/History'));
+const FavoritesPage = lazy(() => import('./pages/Favorites'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+
+// Theme Context
+type Theme = 'dark' | 'day' | 'night' | 'girl';
+interface ThemeContextType {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+}
+const ThemeContext = createContext<ThemeContextType>({ theme: 'dark', setTheme: () => {} });
+export const useTheme = () => useContext(ThemeContext);
+
+function TopBar() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [scrolled, setScrolled] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [user, setUser] = useState(pb.authStore.model);
 
   useEffect(() => {
@@ -28,96 +40,47 @@ function Navbar({ onOpenSettings }: { onOpenSettings: () => void }) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    setSearchQuery(searchParams.get('q') || '');
-  }, [searchParams]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate('/');
-    }
-  };
-
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-      scrolled ? 'bg-black/80 backdrop-blur-xl border-b border-white/5' : 'bg-gradient-to-b from-black/80 to-transparent border-transparent'
+    <header className={`fixed top-0 right-0 left-0 lg:left-64 h-20 z-40 transition-all duration-300 px-6 flex items-center justify-between ${
+      scrolled ? 'bg-bg-main/80 backdrop-blur-xl border-b border-border-main' : 'bg-transparent'
     }`}>
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        <Link 
-          to="/" 
-          onClick={() => {
-            setSearchQuery('');
-            navigate('/');
-          }}
-          className="flex items-center gap-2 text-white hover:text-rose-400 transition-colors shrink-0"
-        >
-          <Film className="w-6 h-6 text-rose-500" />
-          <span className="font-bold text-lg tracking-tight hidden sm:block">江湖影院</span>
-        </Link>
-        
-        <div className="flex items-center gap-2 flex-1 justify-end">
-          <form onSubmit={handleSearch} className="relative group max-w-md w-full sm:w-64 transition-all duration-300 focus-within:w-full focus-within:sm:w-80">
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search className="w-4 h-4 text-zinc-500 group-focus-within:text-rose-500 transition-colors" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索影片、导演、主演..."
-              className="w-full bg-zinc-900/80 border border-white/10 rounded-full py-1.5 pl-9 pr-10 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-rose-500/50 focus:border-rose-500 backdrop-blur-xl transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  navigate('/');
-                }}
-                className="absolute inset-y-0 right-3 flex items-center text-zinc-500 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </form>
-          
-          <Link
-            to="/user"
-            className={`p-2 rounded-full transition-all ${
-              location.pathname === '/user' 
-                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
-                : 'text-zinc-400 hover:text-white hover:bg-white/10'
-            }`}
-            title="个人中心"
-          >
-            {user ? (
-              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white">
-                {(user.username || user.email || '?')[0].toUpperCase()}
-              </div>
-            ) : (
-              <UserIcon className="w-5 h-5" />
-            )}
-          </Link>
-
-          <button 
-            onClick={onOpenSettings}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors shrink-0"
-            title="设置"
-          >
-            <SettingsIcon className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="flex items-center gap-4">
+        <h2 className="text-lg font-bold text-text-main tracking-tight">
+          {location.pathname === '/' ? '首页' : 
+           location.pathname === '/history' ? '播放历史' :
+           location.pathname === '/favorites' ? '我的收藏' :
+           location.pathname === '/settings' ? '设置' :
+           location.pathname === '/user' ? '个人中心' :
+           location.pathname === '/search' ? '搜索' : ''}
+        </h2>
       </div>
-    </nav>
+      
+      <div className="flex items-center gap-4">
+        <Link to="/settings" className="p-2.5 rounded-xl bg-bg-card/50 border border-border-main text-text-muted hover:text-text-main hover:bg-bg-card transition-all">
+          <SettingsIcon className="w-5 h-5" />
+        </Link>
+        <Link to="/user" className="w-10 h-10 rounded-xl bg-gradient-to-br from-bg-accent to-orange-500 p-[1px]">
+          <div className="w-full h-full rounded-[11px] bg-bg-main flex items-center justify-center">
+            {user ? (
+              <span className="text-xs font-bold text-text-main">{(user.username || user.email || '?')[0].toUpperCase()}</span>
+            ) : (
+              <UserIcon className="w-5 h-5 text-text-main" />
+            )}
+          </div>
+        </Link>
+      </div>
+    </header>
   );
 }
 
 export default function App() {
-  const [showSettings, setShowSettings] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [theme, setThemeState] = useState<Theme>((localStorage.getItem('app_theme') as Theme) || 'dark');
+
+  const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme);
+    localStorage.setItem('app_theme', newTheme);
+  };
 
   useEffect(() => {
     const activeId = localStorage.getItem('maccms_active_source_id');
@@ -136,26 +99,56 @@ export default function App() {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-4">
-        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
-        <div className="text-zinc-400 text-sm animate-pulse">正在为您测速并选取最佳线路...</div>
+      <div className={`min-h-screen bg-bg-main flex flex-col items-center justify-center gap-4 ${theme === 'dark' ? '' : `theme-${theme}`}`}>
+        <div className="w-20 h-20 bg-bg-accent rounded-3xl flex items-center justify-center shadow-2xl shadow-bg-accent/40 mb-4 animate-pulse">
+          <PlayCircle className="w-12 h-12 text-white" />
+        </div>
+        <div className="text-text-muted text-sm animate-pulse">正在为您测速并选取最佳线路...</div>
       </div>
     );
   }
 
   return (
-    <Router>
-      <div className="min-h-screen bg-[#0a0a0a] text-zinc-50 font-sans selection:bg-rose-500/30">
-        <Navbar onOpenSettings={() => setShowSettings(true)} />
-        <main>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/video/:id" element={<Detail />} />
-            <Route path="/user" element={<UserCenter />} />
-          </Routes>
-        </main>
-        {showSettings && <Settings onClose={() => setShowSettings(false)} />}
-      </div>
-    </Router>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      <Router>
+        <AppLayout />
+      </Router>
+    </ThemeContext.Provider>
+  );
+}
+
+function AppLayout() {
+  const { theme } = useTheme();
+  const location = useLocation();
+  const isDetailPage = location.pathname.startsWith('/video/');
+
+  return (
+    <div className={`flex min-h-screen bg-bg-main text-text-main font-sans selection:bg-bg-accent/30 ${theme === 'dark' ? '' : `theme-${theme}`}`}>
+      <Sidebar />
+      
+      <main className="flex-1 relative lg:pl-64">
+        {!isDetailPage && <TopBar />}
+        
+        <div className="pb-20 lg:pb-0">
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-[60vh]">
+              <Loader2 className="w-10 h-10 text-bg-accent animate-spin" />
+            </div>
+          }>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/video/:id" element={<Detail />} />
+              <Route path="/user" element={<UserCenter />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/favorites" element={<FavoritesPage />} />
+              <Route path="/search" element={<SearchPage />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </main>
+
+      <BottomNav />
+    </div>
   );
 }

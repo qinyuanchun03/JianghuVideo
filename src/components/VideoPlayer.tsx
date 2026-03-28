@@ -136,7 +136,7 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
           <div ref={containerRef} className="w-full h-full" />
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in fade-in duration-300">
-              <AlertCircle className="w-12 h-12 text-rose-500 mb-4" />
+              <AlertCircle className="w-12 h-12 text-bg-accent mb-4" />
               <h3 className="text-lg font-bold text-white mb-2">播放失败</h3>
               <p className="text-zinc-400 text-sm mb-6 max-w-xs">{error}</p>
               <div className="flex flex-wrap justify-center gap-4">
@@ -150,7 +150,7 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
                 {corsProxy && !useProxy && (
                   <button 
                     onClick={() => setUseProxy(true)}
-                    className="flex items-center gap-2 px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-sm font-medium transition-all shadow-lg shadow-rose-600/20"
+                    className="flex items-center gap-2 px-6 py-2 bg-bg-accent hover:opacity-90 text-white rounded-full text-sm font-medium transition-all shadow-lg shadow-bg-accent/20"
                   >
                     <ShieldCheck className="w-4 h-4" />
                     尝试代理播放
