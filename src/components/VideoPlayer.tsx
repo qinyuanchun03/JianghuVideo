@@ -22,16 +22,18 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
   const cfCdn2Proxy = proxies.find(p => p.id === 'cf-cdn2')?.url || '';
   
   const [error, setError] = useState<string | null>(null);
-  const [proxyMode, setProxyMode] = useState<'default' | 'cf-cdn2'>('default');
+  const [proxyMode, setProxyMode] = useState<'default' | 'cf-cdn2' | 'direct'>('default');
+  const [retryCount, setRetryCount] = useState(0);
 
   const getActiveProxy = () => {
     if (proxyMode === 'default') return defaultProxy;
     if (proxyMode === 'cf-cdn2') return cfCdn2Proxy;
-    return defaultProxy;
+    return ''; // direct
   };
 
   const videoUrl = React.useMemo(() => {
     if (!url) return '';
+    if (proxyMode === 'direct') return url;
     // 如果 URL 已经是代理 URL，则不再重复代理
     if (url.includes('video-api.250221.xyz') || url.includes('takaosakuma.dpdns.org')) {
       return url;
@@ -41,11 +43,18 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
   }, [url, proxyMode, defaultProxy, cfCdn2Proxy]);
 
   const handleRetry = () => {
+    if (retryCount >= 2) {
+      setError('多次尝试切换代理失败，请检查网络或尝试“直连”播放。');
+      return;
+    }
+
     setError(null);
+    setRetryCount(prev => prev + 1);
+    
     if (proxyMode === 'default') {
       console.log('[VideoPlayer] Switching to CF-CDN2...');
       setProxyMode('cf-cdn2');
-    } else {
+    } else if (proxyMode === 'cf-cdn2') {
       console.log('[VideoPlayer] Switching back to CF-CDN1...');
       setProxyMode('default');
     }
@@ -143,8 +152,12 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
             console.error('[VideoPlayer] HLS Fatal Error', data);
-            setError('播放失败，正在尝试切换代理...');
-            handleRetry();
+            if (retryCount < 2) {
+              setError('播放失败，正在尝试切换代理...');
+              handleRetry();
+            } else {
+              setError('多次尝试切换代理失败，请检查网络或尝试“直连”播放。');
+            }
           }
         });
 
@@ -164,8 +177,12 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
 
     art.on('video:error', (e: any) => {
       console.error('[VideoPlayer] ArtPlayer Error:', e);
-      setError('播放失败，正在尝试切换代理...');
-      handleRetry();
+      if (retryCount < 2) {
+        setError('播放失败，正在尝试切换代理...');
+        handleRetry();
+      } else {
+        setError('多次尝试切换代理失败，请检查网络或尝试“直连”播放。');
+      }
     });
 
     if (onProgress) {
@@ -220,6 +237,7 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
                 <button 
                   onClick={() => {
                     setProxyMode('default');
+                    setRetryCount(0);
                     setError(null);
                   }}
                   className="flex items-center gap-2 px-6 py-2 bg-bg-card hover:bg-bg-card/80 text-text-main rounded-full text-sm font-medium transition-all border border-border-main"
@@ -228,14 +246,28 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
                   重置播放
                 </button>
                 <button 
-                  onClick={() => handleRetry()}
+                  onClick={() => {
+                    setProxyMode('direct');
+                    setRetryCount(0);
+                    setError(null);
+                  }}
+                  className="flex items-center gap-2 px-6 py-2 bg-bg-card hover:bg-bg-card/80 text-text-main rounded-full text-sm font-medium transition-all border border-border-main"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  直连播放
+                </button>
+                <button 
+                  onClick={() => {
+                    setRetryCount(0);
+                    handleRetry();
+                  }}
                   className="flex items-center gap-2 px-6 py-2 bg-bg-accent hover:opacity-90 text-white rounded-full text-sm font-medium transition-all shadow-lg shadow-bg-accent/20"
                 >
                   <RefreshCw className="w-4 h-4" />
                   切换代理
                 </button>
               </div>
-              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'default' ? 'CF-CDN1 (默认)' : 'CF-CDN2'} 代理模式</p>
+              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'default' ? 'CF-CDN1 (默认)' : proxyMode === 'cf-cdn2' ? 'CF-CDN2' : '直连'} 模式</p>
             </div>
           )}
         </>
