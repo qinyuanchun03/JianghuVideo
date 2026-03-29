@@ -131,6 +131,7 @@ if (testSource) LITE_SOURCES.push(testSource);
 
 const DEFAULT_CORS: ConfigItem[] = [
   { id: 'default', name: '内置代理 (推荐)', url: 'https://video-api.250221.xyz/?url=' },
+  { id: 'shunt', name: '分流代理 (备用)', url: 'https://corsproxy.io/?' },
   { id: 'none', name: '直连 (无代理)', url: '' }
 ];
 

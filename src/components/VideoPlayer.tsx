@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import DPlayer from 'dplayer';
-import { getCustomPlayerUrl, getCorsProxyUrl } from '../services/maccms';
-import { AlertCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { getCustomPlayerUrl, getCorsProxies } from '../services/maccms';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface VideoPlayerProps {
   url: string;
@@ -15,11 +15,37 @@ interface VideoPlayerProps {
 export default function VideoPlayer({ url, poster, initialProgress, onProgress }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const customPlayerUrl = getCustomPlayerUrl();
-  const corsProxy = getCorsProxyUrl();
+  const proxies = getCorsProxies();
+  const defaultProxy = proxies.find(p => p.id === 'default')?.url || '';
+  const shuntProxy = proxies.find(p => p.id === 'shunt')?.url || '';
+  
   const [error, setError] = useState<string | null>(null);
-  const [useProxy, setUseProxy] = useState(false);
+  const [proxyMode, setProxyMode] = useState<'direct' | 'default' | 'shunt'>('direct');
+  const [retryCount, setRetryCount] = useState(0);
 
-  const videoUrl = useProxy && corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
+  const getActiveProxy = () => {
+    if (proxyMode === 'default') return defaultProxy;
+    if (proxyMode === 'shunt') return shuntProxy;
+    return '';
+  };
+
+  const currentProxy = getActiveProxy();
+  const videoUrl = currentProxy ? `${currentProxy}${encodeURIComponent(url)}` : url;
+
+  const handleRetry = async () => {
+    setError(null);
+    if (proxyMode === 'direct') {
+      console.log('[VideoPlayer] Retrying with default proxy...');
+      setProxyMode('default');
+    } else if (proxyMode === 'default') {
+      console.log('[VideoPlayer] Retrying with shunt proxy...');
+      setProxyMode('shunt');
+    } else if (proxyMode === 'shunt') {
+      console.log('[VideoPlayer] Retrying with default proxy again...');
+      setProxyMode('default');
+      setRetryCount(prev => prev + 1);
+    }
+  };
 
   useEffect(() => {
     if (customPlayerUrl) return;
@@ -56,7 +82,14 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
                   switch (data.type) {
                     case Hls.ErrorTypes.NETWORK_ERROR:
                       console.error('[VideoPlayer] HLS Network Error', data);
-                      setError('网络连接失败，可能存在跨域限制。请尝试开启“代理播放”或更换线路。');
+                      if (retryCount < 3) {
+                        setError('网络连接失败，正在尝试自动切换代理...');
+                        setTimeout(() => {
+                          handleRetry();
+                        }, 1000);
+                      } else {
+                        setError('多次尝试切换代理失败，请检查网络或尝试换源。');
+                      }
                       hls.startLoad();
                       break;
                     case Hls.ErrorTypes.MEDIA_ERROR:
@@ -96,7 +129,10 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
           case 4: details = ' (资源不支持)'; break;
         }
       }
-      setError(`播放器加载失败${details}，可能由于资源失效或跨域限制`);
+      setError(`播放器加载失败${details}，正在尝试自动切换代理...`);
+      setTimeout(() => {
+        handleRetry();
+      }, 1000);
     });
 
     if (initialProgress && initialProgress > 0) {
@@ -129,7 +165,6 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
           className="w-full h-full border-0"
           allowFullScreen
           allow="autoplay; fullscreen"
-          referrerPolicy="no-referrer"
         />
       ) : (
         <>
@@ -138,26 +173,17 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in fade-in duration-300">
               <AlertCircle className="w-12 h-12 text-bg-accent mb-4" />
               <h3 className="text-lg font-bold text-white mb-2">播放失败</h3>
-              <p className="text-zinc-400 text-sm mb-6 max-w-xs">{error}</p>
+              <p className="text-text-muted text-sm mb-6 max-w-xs">{error}</p>
               <div className="flex flex-wrap justify-center gap-4">
                 <button 
-                  onClick={() => window.location.reload()}
-                  className="flex items-center gap-2 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm font-medium transition-all"
+                  onClick={() => handleRetry()}
+                  className="flex items-center gap-2 px-6 py-2 bg-bg-accent hover:opacity-90 text-white rounded-full text-sm font-medium transition-all shadow-lg shadow-bg-accent/20"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  刷新页面
+                  重试播放
                 </button>
-                {corsProxy && !useProxy && (
-                  <button 
-                    onClick={() => setUseProxy(true)}
-                    className="flex items-center gap-2 px-6 py-2 bg-bg-accent hover:opacity-90 text-white rounded-full text-sm font-medium transition-all shadow-lg shadow-bg-accent/20"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    尝试代理播放
-                  </button>
-                )}
               </div>
-              <p className="mt-6 text-xs text-zinc-600">提示: 如果多次刷新无效，请尝试在右侧切换播放源</p>
+              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'direct' ? '直连' : proxyMode === 'default' ? '默认代理' : '分流代理'} 模式</p>
             </div>
           )}
         </>

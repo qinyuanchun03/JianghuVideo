@@ -86,7 +86,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-400 text-sm">
+            <div className="mb-6 p-4 bg-bg-accent/10 border border-bg-accent/20 rounded-xl flex items-center gap-3 text-bg-accent text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <p>{error}</p>
             </div>

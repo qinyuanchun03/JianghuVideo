@@ -179,7 +179,7 @@ export default function Detail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-24">
         <Loader2 className="w-10 h-10 text-bg-accent animate-spin" />
       </div>
     );
@@ -187,7 +187,7 @@ export default function Detail() {
 
   if (error || !video) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
+      <div className="flex flex-col items-center justify-center text-center px-4 py-24">
         <h2 className="text-2xl font-bold text-text-main mb-4">出错了</h2>
         <p className="text-text-muted mb-8">{error || '影片不存在'}</p>
         <div className="flex gap-4">
@@ -230,7 +230,7 @@ export default function Detail() {
   const activeSource = sources[activeSourceIndex];
 
   return (
-    <div className="min-h-screen">
+    <div>
       {/* Top Navigation */}
       <div className="sticky top-0 z-50 bg-bg-main/80 backdrop-blur-xl border-b border-border-main h-20 flex items-center px-6">
         <div className="w-full flex items-center justify-between gap-4">
@@ -375,7 +375,7 @@ export default function Detail() {
                   <div>
                     <h4 className="text-text-muted text-sm mb-2">剧情简介</h4>
                     <div 
-                      className="text-text-muted text-sm leading-relaxed prose prose-invert max-w-none"
+                      className="text-text-muted text-sm leading-relaxed max-w-none"
                       dangerouslySetInnerHTML={{ __html: video.vod_content }}
                     />
                   </div>

@@ -330,7 +330,7 @@ export default function Settings() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 pt-24 pb-8">
-      <div className="bg-bg-main border border-border-main rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden min-h-[70vh]">
+      <div className="bg-bg-main/80 backdrop-blur-3xl border border-border-main rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden md:h-[calc(100dvh-8rem)] min-h-[70vh]">
         {/* Sidebar */}
         <div className="w-full md:w-72 bg-bg-card/30 border-b md:border-b-0 md:border-r border-border-main flex flex-col shrink-0 z-10">
           <div className="p-8 pb-4">
@@ -373,7 +373,7 @@ export default function Settings() {
 
         {/* Content Area */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-bg-main/20 relative">
-          <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar overscroll-contain">
+          <div className="flex-1 md:overflow-y-auto p-6 md:p-10 custom-scrollbar overscroll-contain">
             {activeTab === 'theme' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center gap-3">

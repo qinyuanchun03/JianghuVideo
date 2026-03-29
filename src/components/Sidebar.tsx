@@ -27,7 +27,7 @@ export const Sidebar: React.FC = () => {
   const location = useLocation();
   
   return (
-    <aside className="hidden lg:flex flex-col w-64 h-screen fixed top-0 left-0 bg-bg-main border-r border-border-main p-6 overflow-y-auto scrollbar-hide z-50 shrink-0">
+    <aside className="hidden lg:flex flex-col w-64 h-[100dvh] fixed top-0 left-0 bg-bg-main/50 backdrop-blur-2xl border-r border-border-main p-6 overflow-y-auto scrollbar-hide z-50 shrink-0">
       <div className="flex items-center gap-3 mb-10 px-2">
         <div className="w-10 h-10 bg-bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-bg-accent/20">
           <PlayCircle className="text-white w-6 h-6" />

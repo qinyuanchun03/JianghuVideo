@@ -23,9 +23,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType>({ theme: 'dark', setTheme: () => {} });
 export const useTheme = () => useContext(ThemeContext);
 
-function TopBar() {
+function TopBar({ scrolled }: { scrolled: boolean }) {
   const location = useLocation();
-  const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState(pb.authStore.model);
 
   useEffect(() => {
@@ -34,14 +33,8 @@ function TopBar() {
     return () => window.removeEventListener('pb_auth_changed', handleAuthChange);
   }, []);
 
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   return (
-    <header className={`fixed top-0 right-0 left-0 lg:left-64 h-20 z-40 transition-all duration-300 px-6 flex items-center justify-between ${
+    <header className={`sticky top-0 z-40 transition-all duration-300 px-6 flex items-center justify-between h-20 shrink-0 -mb-20 ${
       scrolled ? 'bg-bg-main/80 backdrop-blur-xl border-b border-border-main' : 'bg-transparent'
     }`}>
       <div className="flex items-center gap-4">
@@ -97,9 +90,16 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    document.documentElement.classList.remove('theme-day', 'theme-night', 'theme-girl');
+    if (theme !== 'dark') {
+      document.documentElement.classList.add(`theme-${theme}`);
+    }
+  }, [theme]);
+
   if (isInitializing) {
     return (
-      <div className={`min-h-screen bg-bg-main flex flex-col items-center justify-center gap-4 ${theme === 'dark' ? '' : `theme-${theme}`}`}>
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-4">
         <div className="w-20 h-20 bg-bg-accent rounded-3xl flex items-center justify-center shadow-2xl shadow-bg-accent/40 mb-4 animate-pulse">
           <PlayCircle className="w-12 h-12 text-white" />
         </div>
@@ -121,15 +121,25 @@ function AppLayout() {
   const { theme } = useTheme();
   const location = useLocation();
   const isDetailPage = location.pathname.startsWith('/video/');
+  const [scrolled, setScrolled] = useState(false);
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    setScrolled(e.currentTarget.scrollTop > 20);
+  };
 
   return (
-    <div className={`flex min-h-screen bg-bg-main text-text-main font-sans selection:bg-bg-accent/30 ${theme === 'dark' ? '' : `theme-${theme}`}`}>
+    <div className="flex h-[100dvh] overflow-hidden text-text-main font-sans selection:bg-bg-accent/30">
       <Sidebar />
       
-      <main className="flex-1 relative lg:pl-64">
-        {!isDetailPage && <TopBar />}
+      <main 
+        className="flex-1 relative lg:pl-64 flex flex-col min-w-0 overflow-y-auto custom-scrollbar"
+        onScroll={handleScroll}
+      >
+        {!isDetailPage && <TopBar scrolled={scrolled} />}
         
-        <div className="pb-20 lg:pb-0">
+        <div 
+          className="flex-1 pb-[max(5rem,calc(4rem+env(safe-area-inset-bottom)))] lg:pb-0"
+        >
           <Suspense fallback={
             <div className="flex items-center justify-center h-[60vh]">
               <Loader2 className="w-10 h-10 text-bg-accent animate-spin" />

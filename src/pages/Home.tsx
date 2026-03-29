@@ -255,9 +255,9 @@ export default function Home() {
   };
 
   return (
-    <div className={`min-h-screen bg-bg-main ${!isHomeMode ? 'pt-20' : ''}`}>
+    <div className={`${!isHomeMode ? 'pt-20' : ''}`}>
       {isHomeMode && featuredVideo && (
-        <div className="relative w-full h-[70vh] md:h-[85vh] mb-8">
+        <div className="relative w-full h-[50vh] sm:h-[60vh] md:h-[85vh] mb-8">
           <div className="absolute inset-0">
             <img 
               src={featuredVideo.vod_pic || null} 
@@ -269,23 +269,23 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-t from-bg-main via-bg-main/40 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-bg-main via-bg-main/50 to-transparent" />
           </div>
-          <div className="absolute bottom-0 left-0 right-0 px-4 pb-12 md:px-20 lg:px-32 md:pb-24 max-w-7xl mx-auto">
-            <h1 className="text-4xl md:text-6xl font-bold text-text-main mb-4 drop-shadow-lg">{featuredVideo.vod_name}</h1>
-            <div className="flex items-center gap-4 text-sm text-text-muted mb-6 drop-shadow">
+          <div className="absolute bottom-0 left-0 right-0 px-4 pb-8 md:px-20 lg:px-32 md:pb-24 max-w-7xl mx-auto">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-text-main mb-3 md:mb-4 drop-shadow-lg line-clamp-2">{featuredVideo.vod_name}</h1>
+            <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-text-muted mb-4 md:mb-6 drop-shadow">
               {featuredVideo.vod_score && featuredVideo.vod_score !== '0.0' && (
-                <span className="flex items-center gap-1 text-bg-accent font-medium"><Star className="w-4 h-4 fill-current" /> {featuredVideo.vod_score}</span>
+                <span className="flex items-center gap-1 text-bg-accent font-medium"><Star className="w-3 h-3 md:w-4 md:h-4 fill-current" /> {featuredVideo.vod_score}</span>
               )}
               <span>{featuredVideo.vod_year}</span>
               <span>{featuredVideo.vod_class || featuredVideo.type_name}</span>
             </div>
-            <p className="text-text-muted text-sm md:text-base line-clamp-3 mb-8 max-w-2xl drop-shadow" dangerouslySetInnerHTML={{ __html: featuredVideo.vod_content?.replace(/<[^>]+>/g, '') || '' }} />
+            <p className="text-text-muted text-xs sm:text-sm md:text-base line-clamp-2 md:line-clamp-3 mb-6 md:mb-8 max-w-2xl drop-shadow" dangerouslySetInnerHTML={{ __html: featuredVideo.vod_content?.replace(/<[^>]+>/g, '') || '' }} />
             <div className="flex gap-4">
               <Link 
                 to={`/video/${featuredVideo.vod_id}`} 
                 target="_blank"
-                className="flex items-center gap-2 bg-text-main text-bg-main px-8 py-3 rounded-full font-bold hover:opacity-90 transition-colors"
+                className="flex items-center gap-2 bg-text-main text-bg-main px-6 py-2.5 md:px-8 md:py-3 rounded-full text-sm md:text-base font-bold hover:opacity-90 transition-colors"
               >
-                <Play className="w-5 h-5 fill-current" /> 立即播放
+                <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> 立即播放
               </Link>
             </div>
           </div>

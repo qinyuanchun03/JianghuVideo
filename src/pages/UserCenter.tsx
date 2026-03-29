@@ -78,7 +78,7 @@ export default function UserCenter() {
 
   if (!user) {
     return (
-      <div className="min-h-screen pt-24 pb-12 px-4 flex flex-col items-center justify-center text-center">
+      <div className="pt-24 pb-12 px-4 flex flex-col items-center justify-center text-center">
         <div className="w-20 h-20 bg-bg-card rounded-full flex items-center justify-center mb-6 border border-border-main">
           <UserIcon className="w-10 h-10 text-text-muted/50" />
         </div>
@@ -96,7 +96,7 @@ export default function UserCenter() {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4 max-w-7xl mx-auto">
+    <div className="pt-24 pb-12 px-4 max-w-7xl mx-auto">
       {/* User Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 bg-bg-card/40 p-8 rounded-[2.5rem] border border-border-main">
         <div className="flex items-center gap-6">

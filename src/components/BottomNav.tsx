@@ -23,7 +23,10 @@ export const BottomNav: React.FC = () => {
   const location = useLocation();
   
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-bg-main/80 backdrop-blur-xl border-t border-border-main flex items-center justify-around px-4 z-50">
+    <nav 
+      className="lg:hidden fixed bottom-0 left-0 right-0 bg-bg-main/80 backdrop-blur-xl border-t border-border-main flex items-center justify-around px-4 z-50"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)', height: 'calc(4rem + env(safe-area-inset-bottom))' }}
+    >
       <NavItem to="/" icon={<Home className="w-5 h-5" />} label="首页" active={location.pathname === '/'} />
       <NavItem to="/history" icon={<History className="w-5 h-5" />} label="历史" active={location.pathname === '/history'} />
       <Link to="/search" className="relative -top-3">
