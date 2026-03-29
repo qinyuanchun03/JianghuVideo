@@ -138,7 +138,7 @@ const DEFAULT_CORS: ConfigItem[] = [
 const DEFAULT_PLAYERS: ConfigItem[] = [
   { id: 'default', name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' },
   { id: 'dbzy99', name: 'DBZY99 播放器', url: 'https://dbzy99.com:699/?url=' },
-  { id: 'dplayer', name: '内置 DPlayer/HLS', url: '' }
+  { id: 'dplayer', name: '内置 ArtPlayer/HLS', url: '' }
 ];
 
 export const getSources = (): ConfigItem[] => {
@@ -231,8 +231,8 @@ export const getPlayers = (): ConfigItem[] => {
     if (p.id === 'default' && (p.url === '' || !p.url)) {
       return { ...p, name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' };
     }
-    if (p.id === 'ikun' && p.url === 'https://www.ikundmjx.com/?url=') {
-      return { ...p, id: 'dplayer', name: '内置 DPlayer/HLS', url: '' };
+    if (p.id === 'dplayer' || (p.id === 'ikun' && p.url === 'https://www.ikundmjx.com/?url=')) {
+      return { ...p, id: 'dplayer', name: '内置 ArtPlayer/HLS', url: '' };
     }
     return p;
   });

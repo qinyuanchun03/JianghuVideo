@@ -168,55 +168,45 @@ async function startServer() {
       let m3u8Content = await response.text();
       const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
       
-      // Only filter if it looks like an M3U8
+      // Resolve relative URLs and return cleaned M3U8
       if (m3u8Content.includes('#EXTM3U')) {
         const lines = m3u8Content.split('\n');
-        const filteredLines: string[] = [];
-        let skipNext = false;
+        const resolvedLines: string[] = [];
+        const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
 
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
+        for (let line of lines) {
+          line = line.trim();
           if (!line) continue;
 
-          // Ad filtering logic (based on common patterns and discontinuity)
-          const isAdPattern = /.*ad.*\.ts/i.test(line) || 
-                             /.*ad.*\.m3u8/i.test(line) || 
-                             /.*\.ad\..*/i.test(line) ||
-                             /.*\.doubleclick\..*/i.test(line) ||
-                             /.*\.googlesyndication\..*/i.test(line) ||
-                             /.*\.ads\..*/i.test(line);
-
-          if (isAdPattern) {
-            // If the current line is an ad URL, we skip it and its metadata
-            // Usually metadata like #EXTINF precedes the URL
-            if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1].startsWith('#EXTINF')) {
-              filteredLines.pop();
-            }
-            continue;
-          }
-
-          // Resolve relative URLs
           if (line.startsWith('#')) {
             // Handle tags that might contain URLs, like #EXT-X-KEY:URI="..."
             if (line.includes('URI="')) {
               const newLine = line.replace(/URI="([^"]+)"/, (match, p1) => {
                 if (p1.startsWith('http')) return match;
-                return `URI="${new URL(p1, baseUrl).toString()}"`;
+                try {
+                  return `URI="${new URL(p1, baseUrl).toString()}"`;
+                } catch (e) {
+                  return match;
+                }
               });
-              filteredLines.push(newLine);
+              resolvedLines.push(newLine);
             } else {
-              filteredLines.push(line);
+              resolvedLines.push(line);
             }
           } else {
-            // This is a segment URL
+            // This is a segment or playlist URL
             if (line.startsWith('http')) {
-              filteredLines.push(line);
+              resolvedLines.push(line);
             } else {
-              filteredLines.push(new URL(line, baseUrl).toString());
+              try {
+                resolvedLines.push(new URL(line, baseUrl).toString());
+              } catch (e) {
+                resolvedLines.push(line);
+              }
             }
           }
         }
-        m3u8Content = filteredLines.join('\n');
+        m3u8Content = resolvedLines.join('\n');
       }
       
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');

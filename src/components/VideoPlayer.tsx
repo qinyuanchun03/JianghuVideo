@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Artplayer from 'artplayer';
 import Hls from 'hls.js';
-import DPlayer from 'dplayer';
 import { getCustomPlayerUrl, getCorsProxies } from '../services/maccms';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -20,12 +20,13 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
   const shuntProxy = proxies.find(p => p.id === 'shunt')?.url || '';
   
   const [error, setError] = useState<string | null>(null);
-  const [proxyMode, setProxyMode] = useState<'direct' | 'default' | 'shunt'>('direct');
+  const [proxyMode, setProxyMode] = useState<'direct' | 'default' | 'shunt' | 'server'>('direct');
   const [retryCount, setRetryCount] = useState(0);
 
   const getActiveProxy = () => {
     if (proxyMode === 'default') return defaultProxy;
     if (proxyMode === 'shunt') return shuntProxy;
+    if (proxyMode === 'server') return '/api/proxy/m3u8?url=';
     return '';
   };
 
@@ -38,6 +39,9 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
       console.log('[VideoPlayer] Retrying with default proxy...');
       setProxyMode('default');
     } else if (proxyMode === 'default') {
+      console.log('[VideoPlayer] Retrying with server-side M3U8 proxy...');
+      setProxyMode('server');
+    } else if (proxyMode === 'server') {
       console.log('[VideoPlayer] Retrying with shunt proxy...');
       setProxyMode('shunt');
     } else if (proxyMode === 'shunt') {
@@ -52,108 +56,115 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
     if (!containerRef.current || !videoUrl) return;
 
     setError(null);
-    console.log('[VideoPlayer] Initializing with URL:', videoUrl);
+    console.log('[VideoPlayer] Initializing with ArtPlayer URL:', videoUrl);
 
-    const dp = new DPlayer({
+    const art = new Artplayer({
       container: containerRef.current,
-      video: {
-        url: videoUrl,
-        pic: poster,
-        type: videoUrl.includes('.m3u8') || videoUrl.includes('m3u8') ? 'customHls' : 'auto',
-        customType: {
-          customHls: function (video: HTMLVideoElement, player: any) {
-            if (Hls.isSupported()) {
-              const hls = new Hls({
-                maxBufferLength: 30,
-                maxMaxBufferLength: 600,
-                enableWorker: true,
-                xhrSetup: (xhr) => {
-                  xhr.withCredentials = false;
-                }
-              });
-              hls.loadSource(videoUrl);
-              hls.attachMedia(video);
-              player.events.on('destroy', () => {
-                hls.destroy();
-              });
-              
-              hls.on(Hls.Events.ERROR, (event, data) => {
-                if (data.fatal) {
-                  switch (data.type) {
-                    case Hls.ErrorTypes.NETWORK_ERROR:
-                      console.error('[VideoPlayer] HLS Network Error', data);
-                      if (retryCount < 3) {
-                        setError('网络连接失败，正在尝试自动切换代理...');
-                        setTimeout(() => {
-                          handleRetry();
-                        }, 1000);
-                      } else {
-                        setError('多次尝试切换代理失败，请检查网络或尝试换源。');
-                      }
-                      hls.startLoad();
-                      break;
-                    case Hls.ErrorTypes.MEDIA_ERROR:
-                      console.error('[VideoPlayer] HLS Media Error', data);
-                      setError('媒体解码失败，请尝试换源');
-                      hls.recoverMediaError();
-                      break;
-                    default:
-                      console.error('[VideoPlayer] HLS Fatal Error', data);
-                      setError('播放器发生致命错误，请尝试换源');
-                      hls.destroy();
-                      break;
-                  }
-                }
-              });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-              video.src = videoUrl;
-            }
-          },
-        },
-      },
+      url: videoUrl,
+      poster: poster,
       autoplay: true,
-      theme: '#f43f5e',
+      autoSize: true,
+      autoMini: true,
+      loop: false,
+      flip: true,
+      playbackRate: true,
+      aspectRatio: true,
+      setting: true,
       hotkey: true,
-      preload: 'auto',
+      pip: true,
+      mutex: true,
+      fullscreen: true,
+      fullscreenWeb: true,
+      subtitleOffset: true,
+      miniProgressBar: true,
+      lock: true,
+      fastForward: true,
+      autoPlayback: true,
+      theme: '#f43f5e',
+      customType: {
+        m3u8: playHls,
+        hls: playHls,
+        'application/x-mpegURL': playHls,
+        'application/vnd.apple.mpegurl': playHls,
+      },
     });
 
-    dp.on('error', (e: any) => {
-      console.error('[VideoPlayer] DPlayer Error:', e);
-      const video = containerRef.current?.querySelector('video');
-      let details = '';
-      if (video?.error) {
-        switch (video.error.code) {
-          case 1: details = ' (用户终止)'; break;
-          case 2: details = ' (网络错误)'; break;
-          case 3: details = ' (解码错误)'; break;
-          case 4: details = ' (资源不支持)'; break;
-        }
+    function playHls(video: HTMLVideoElement, url: string) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          enableWorker: true,
+          xhrSetup: (xhr) => {
+            xhr.withCredentials = false;
+          }
+        });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error('[VideoPlayer] HLS Network Error', data);
+                if (retryCount < 4) {
+                  setError('网络连接失败，正在尝试自动切换代理...');
+                  setTimeout(() => {
+                    handleRetry();
+                  }, 1000);
+                } else {
+                  setError('多次尝试切换代理失败，请检查网络或尝试换源。');
+                }
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error('[VideoPlayer] HLS Media Error', data);
+                setError('媒体解码失败，请尝试换源');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.error('[VideoPlayer] HLS Fatal Error', data);
+                setError('播放器发生致命错误，请尝试换源');
+                hls.destroy();
+                break;
+            }
+          }
+        });
+
+        art.on('destroy', () => {
+          hls.destroy();
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url;
       }
-      setError(`播放器加载失败${details}，正在尝试自动切换代理...`);
+    }
+
+    art.on('ready', () => {
+      if (initialProgress && initialProgress > 0) {
+        art.currentTime = initialProgress;
+      }
+    });
+
+    art.on('video:error', (e: any) => {
+      console.error('[VideoPlayer] ArtPlayer Error:', e);
+      setError(`播放器加载失败，正在尝试自动切换代理...`);
       setTimeout(() => {
         handleRetry();
       }, 1000);
     });
 
-    if (initialProgress && initialProgress > 0) {
-      dp.on('loadedmetadata', () => {
-        // Seek if duration is not available yet (NaN/Infinity) or if progress is less than duration
-        if (!dp.video.duration || !isFinite(dp.video.duration) || initialProgress < dp.video.duration - 2) {
-          dp.seek(initialProgress);
-        }
-      });
-    }
-
     if (onProgress) {
-      dp.on('timeupdate', () => {
-        if (dp.video.currentTime > 0 && dp.video.duration > 0) {
-          onProgress(dp.video.currentTime, dp.video.duration);
+      art.on('video:timeupdate', () => {
+        if (art.currentTime > 0 && art.duration > 0) {
+          onProgress(art.currentTime, art.duration);
         }
       });
     }
 
     return () => {
-      dp.destroy();
+      if (art && art.destroy) {
+        art.destroy();
+      }
     };
   }, [videoUrl, poster, customPlayerUrl]);
 
@@ -183,7 +194,7 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
                   重试播放
                 </button>
               </div>
-              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'direct' ? '直连' : proxyMode === 'default' ? '默认代理' : '分流代理'} 模式</p>
+              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'direct' ? '直连' : proxyMode === 'default' ? '默认代理' : proxyMode === 'server' ? '服务器代理' : '分流代理'} 模式</p>
             </div>
           )}
         </>
