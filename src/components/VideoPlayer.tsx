@@ -3,6 +3,7 @@ import Artplayer from 'artplayer';
 import Hls from 'hls.js';
 import { getCustomPlayerUrl, getCorsProxies } from '../services/maccms';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface VideoPlayerProps {
   url: string;
@@ -14,40 +15,39 @@ interface VideoPlayerProps {
 
 export default function VideoPlayer({ url, poster, initialProgress, onProgress }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
   const customPlayerUrl = getCustomPlayerUrl();
   const proxies = getCorsProxies();
   const defaultProxy = proxies.find(p => p.id === 'default')?.url || '';
-  const shuntProxy = proxies.find(p => p.id === 'shunt')?.url || '';
+  const cfCdn2Proxy = proxies.find(p => p.id === 'cf-cdn2')?.url || '';
   
   const [error, setError] = useState<string | null>(null);
-  const [proxyMode, setProxyMode] = useState<'direct' | 'default' | 'shunt' | 'server'>('direct');
-  const [retryCount, setRetryCount] = useState(0);
+  const [proxyMode, setProxyMode] = useState<'default' | 'cf-cdn2'>('default');
 
   const getActiveProxy = () => {
     if (proxyMode === 'default') return defaultProxy;
-    if (proxyMode === 'shunt') return shuntProxy;
-    if (proxyMode === 'server') return '/api/proxy/m3u8?url=';
-    return '';
+    if (proxyMode === 'cf-cdn2') return cfCdn2Proxy;
+    return defaultProxy;
   };
 
-  const currentProxy = getActiveProxy();
-  const videoUrl = currentProxy ? `${currentProxy}${encodeURIComponent(url)}` : url;
+  const videoUrl = React.useMemo(() => {
+    if (!url) return '';
+    // 如果 URL 已经是代理 URL，则不再重复代理
+    if (url.includes('video-api.250221.xyz') || url.includes('takaosakuma.dpdns.org')) {
+      return url;
+    }
+    const currentProxy = getActiveProxy();
+    return currentProxy ? `${currentProxy}${encodeURIComponent(url)}` : url;
+  }, [url, proxyMode, defaultProxy, cfCdn2Proxy]);
 
-  const handleRetry = async () => {
+  const handleRetry = () => {
     setError(null);
-    if (proxyMode === 'direct') {
-      console.log('[VideoPlayer] Retrying with default proxy...');
+    if (proxyMode === 'default') {
+      console.log('[VideoPlayer] Switching to CF-CDN2...');
+      setProxyMode('cf-cdn2');
+    } else {
+      console.log('[VideoPlayer] Switching back to CF-CDN1...');
       setProxyMode('default');
-    } else if (proxyMode === 'default') {
-      console.log('[VideoPlayer] Retrying with server-side M3U8 proxy...');
-      setProxyMode('server');
-    } else if (proxyMode === 'server') {
-      console.log('[VideoPlayer] Retrying with shunt proxy...');
-      setProxyMode('shunt');
-    } else if (proxyMode === 'shunt') {
-      console.log('[VideoPlayer] Retrying with default proxy again...');
-      setProxyMode('default');
-      setRetryCount(prev => prev + 1);
     }
   };
 
@@ -80,12 +80,50 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
       lock: true,
       fastForward: true,
       autoPlayback: true,
-      theme: '#f43f5e',
+      theme: theme === 'dark' ? '#f43f5e' : 
+             theme === 'day' ? '#2563eb' : 
+             theme === 'night' ? '#8b5cf6' : 
+             theme === 'girl' ? '#ec4899' : 
+             theme === 'sunset' ? '#f59e0b' : 
+             theme === 'ocean' ? '#0ea5e9' : 
+             theme === 'forest' ? '#10b981' : '#f43f5e',
+      volume: 0.7,
+      isLive: false,
+      autoOrientation: true,
+      airplay: true,
       customType: {
         m3u8: playHls,
         hls: playHls,
         'application/x-mpegURL': playHls,
         'application/vnd.apple.mpegurl': playHls,
+      },
+      settings: [
+        {
+          html: '画质',
+          width: 150,
+          selector: [
+            {
+              default: true,
+              html: '自动',
+            },
+            {
+              html: '1080P',
+            },
+            {
+              html: '720P',
+            },
+            {
+              html: '480P',
+            },
+          ],
+          onSelect: function (item) {
+            console.info('Quality switched to', item.html);
+            return item.html;
+          },
+        },
+      ],
+      moreVideoAttr: {
+        crossOrigin: 'anonymous',
       },
     });
 
@@ -104,30 +142,9 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
         
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error('[VideoPlayer] HLS Network Error', data);
-                if (retryCount < 4) {
-                  setError('网络连接失败，正在尝试自动切换代理...');
-                  setTimeout(() => {
-                    handleRetry();
-                  }, 1000);
-                } else {
-                  setError('多次尝试切换代理失败，请检查网络或尝试换源。');
-                }
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error('[VideoPlayer] HLS Media Error', data);
-                setError('媒体解码失败，请尝试换源');
-                hls.recoverMediaError();
-                break;
-              default:
-                console.error('[VideoPlayer] HLS Fatal Error', data);
-                setError('播放器发生致命错误，请尝试换源');
-                hls.destroy();
-                break;
-            }
+            console.error('[VideoPlayer] HLS Fatal Error', data);
+            setError('播放失败，正在尝试切换代理...');
+            handleRetry();
           }
         });
 
@@ -147,10 +164,8 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
 
     art.on('video:error', (e: any) => {
       console.error('[VideoPlayer] ArtPlayer Error:', e);
-      setError(`播放器加载失败，正在尝试自动切换代理...`);
-      setTimeout(() => {
-        handleRetry();
-      }, 1000);
+      setError('播放失败，正在尝试切换代理...');
+      handleRetry();
     });
 
     if (onProgress) {
@@ -187,14 +202,40 @@ export default function VideoPlayer({ url, poster, initialProgress, onProgress }
               <p className="text-text-muted text-sm mb-6 max-w-xs">{error}</p>
               <div className="flex flex-wrap justify-center gap-4">
                 <button 
+                  onClick={() => {
+                    const errorInfo = {
+                      url,
+                      videoUrl,
+                      proxyMode,
+                      userAgent: navigator.userAgent,
+                      error
+                    };
+                    navigator.clipboard.writeText(JSON.stringify(errorInfo, null, 2));
+                    alert('错误详情已复制到剪贴板');
+                  }}
+                  className="flex items-center gap-2 px-6 py-2 bg-bg-card hover:bg-bg-card/80 text-text-main rounded-full text-sm font-medium transition-all border border-border-main"
+                >
+                  复制错误
+                </button>
+                <button 
+                  onClick={() => {
+                    setProxyMode('default');
+                    setError(null);
+                  }}
+                  className="flex items-center gap-2 px-6 py-2 bg-bg-card hover:bg-bg-card/80 text-text-main rounded-full text-sm font-medium transition-all border border-border-main"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  重置播放
+                </button>
+                <button 
                   onClick={() => handleRetry()}
                   className="flex items-center gap-2 px-6 py-2 bg-bg-accent hover:opacity-90 text-white rounded-full text-sm font-medium transition-all shadow-lg shadow-bg-accent/20"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  重试播放
+                  切换代理
                 </button>
               </div>
-              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'direct' ? '直连' : proxyMode === 'default' ? '默认代理' : proxyMode === 'server' ? '服务器代理' : '分流代理'} 模式</p>
+              <p className="mt-6 text-xs text-text-muted/50">提示: 正在使用 {proxyMode === 'default' ? 'CF-CDN1 (默认)' : 'CF-CDN2'} 代理模式</p>
             </div>
           )}
         </>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
-import { Settings as SettingsIcon, Save, Info, Rss, Shield, PlayCircle, Database, Trash2, Download, Plus, RefreshCw, X, Zap, Sun, Moon, Palette, Sparkles } from 'lucide-react';
-import { useTheme } from '../App';
+import { Settings as SettingsIcon, Save, Info, Rss, Shield, PlayCircle, Database, Trash2, Download, Plus, RefreshCw, X, Zap, Sun, Moon, Palette, Sparkles, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 import { storage } from '../utils/storage';
 import { 
   ConfigItem,
@@ -32,12 +33,14 @@ const ConfigItemRow = memo(({
   item, 
   activeId, 
   onSetActive, 
+  showDelete = false,
   onDelete 
 }: { 
   item: ConfigItem; 
   activeId: string; 
   onSetActive: (id: string) => void; 
-  onDelete: (id: string) => void;
+  showDelete?: boolean;
+  onDelete?: (id: string) => void;
 }) => (
   <div className={`flex items-center justify-between p-2 sm:p-3 rounded-xl border transition-all duration-300 ${activeId === item.id ? 'bg-bg-main/20 border-bg-accent/20 shadow-lg' : 'bg-bg-card/40 border-border-main hover:border-text-muted/20'}`}>
     <label className="flex items-center gap-3 overflow-hidden flex-1 cursor-pointer group py-1 pl-1">
@@ -68,7 +71,7 @@ const ConfigItemRow = memo(({
         </div>
       </div>
     </label>
-    {!['default', 'none', 'dplayer', 'dbzy99'].includes(item.id) && (
+    {showDelete && onDelete && !['default', 'none', 'dplayer', 'dbzy99'].includes(item.id) && (
       <button
         type="button"
         onClick={() => onDelete(item.id)}
@@ -194,7 +197,8 @@ const ConfigSection = memo(({
 ConfigSection.displayName = 'ConfigSection';
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<Tab>('source');
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>('cors');
   
   // Form states
   const [sourcesState, setSourcesState] = useState<ConfigItem[]>([]);
@@ -205,7 +209,6 @@ export default function Settings() {
 
   const [playersState, setPlayersState] = useState<ConfigItem[]>([]);
   const [activePlayerIdState, setActivePlayerIdState] = useState('');
-  const [useFullSourcesState, setUseFullSourcesState] = useState(storage.get('maccms_use_full_sources') === true);
   
   const [syncing, setSyncing] = useState(false);
   const [testingSpeed, setTestingSpeed] = useState(false);
@@ -215,7 +218,8 @@ export default function Settings() {
   const isInitialMount = useRef(true);
 
   useEffect(() => {
-    setSourcesState(getSources());
+    // Always use effective sources instead of custom sources
+    setSourcesState(getEffectiveSources());
     setActiveSourceIdState(getActiveSourceId());
 
     setCorsProxiesState(getCorsProxies());
@@ -224,6 +228,21 @@ export default function Settings() {
     setPlayersState(getPlayers());
     setActivePlayerIdState(getActivePlayerId());
   }, []);
+
+  const handleSaveAndBack = () => {
+    setSources(sourcesState);
+    setActiveSourceId(activeSourceIdState);
+    setCorsProxies(corsProxiesState);
+    setActiveCorsId(activeCorsIdState);
+    setPlayers(playersState);
+    setActivePlayerId(activePlayerIdState);
+    window.dispatchEvent(new Event('maccms_settings_changed'));
+    
+    setSaved(true);
+    setTimeout(() => {
+      navigate(-1);
+    }, 500);
+  };
 
   // Auto-save effect
   useEffect(() => {
@@ -239,30 +258,15 @@ export default function Settings() {
       setActiveCorsId(activeCorsIdState);
       setPlayers(playersState);
       setActivePlayerId(activePlayerIdState);
-      storage.set('maccms_use_full_sources', useFullSourcesState);
       window.dispatchEvent(new Event('maccms_settings_changed'));
 
       setSaved(true);
       const timer = setTimeout(() => setSaved(false), 2000);
       return () => clearTimeout(timer);
-    }, 500); // Debounce save
+    }, 1000); // Debounce save
 
     return () => clearTimeout(saveTimeout);
-  }, [sourcesState, activeSourceIdState, corsProxiesState, activeCorsIdState, playersState, activePlayerIdState, useFullSourcesState]);
-
-  const handleSync = async (type: 'full' | 'jin18' | 'jingjian') => {
-    setSyncing(true);
-    try {
-      const newSources = await syncFromLunaTV(type);
-      const existingIds = new Set(sourcesState.map(s => s.id));
-      const filteredNew = newSources.filter(s => !existingIds.has(s.id));
-      setSourcesState(prev => [...prev, ...filteredNew]);
-    } catch (e) {
-      console.error('同步失败', e);
-    } finally {
-      setSyncing(false);
-    }
-  };
+  }, [sourcesState, activeSourceIdState, corsProxiesState, activeCorsIdState, playersState, activePlayerIdState]);
 
   const handleAutoSelect = async () => {
     setTestingSpeed(true);
@@ -315,9 +319,8 @@ export default function Settings() {
   };
 
   const handleClearData = () => {
-    // Removed window.confirm for iframe compatibility
     localStorage.clear();
-    setSourcesState(getSources());
+    setSourcesState(getEffectiveSources());
     setActiveSourceIdState(getActiveSourceId());
     setCorsProxiesState(getCorsProxies());
     setActiveCorsIdState(getActiveCorsId());
@@ -329,41 +332,64 @@ export default function Settings() {
   const { theme: currentTheme, setTheme } = useTheme();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 pt-24 pb-8">
-      <div className="bg-bg-main/80 backdrop-blur-3xl border border-border-main rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden md:h-[calc(100dvh-8rem)] min-h-[70vh]">
-        {/* Sidebar */}
-        <div className="w-full md:w-72 bg-bg-card/30 border-b md:border-b-0 md:border-r border-border-main flex flex-col shrink-0 z-10">
-          <div className="p-8 pb-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-bg-card/50 rounded-xl">
-                <SettingsIcon className="w-5 h-5 text-text-main" />
-              </div>
-              <h1 className="text-xl font-black text-text-main tracking-tighter uppercase">Settings</h1>
-            </div>
-            <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest ml-1">Configuration</p>
+    <div className="max-w-7xl mx-auto px-4 pt-20 sm:pt-24 pb-8 h-[100dvh] md:h-auto flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate(-1)}
+            className="p-3 rounded-2xl bg-bg-card/50 border border-border-main text-text-muted hover:text-text-main hover:bg-bg-card transition-all active:scale-95"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-black text-text-main tracking-tighter uppercase">Settings</h1>
+            <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">Configuration</p>
           </div>
+        </div>
+        
+        <button 
+          onClick={handleSaveAndBack}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold transition-all duration-500 active:scale-95 ${
+            saved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-bg-accent text-white shadow-lg shadow-bg-accent/20'
+          }`}
+        >
+          {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {saved ? '已保存' : '完成'}
+        </button>
+      </div>
 
-          <nav className="p-4 space-y-1 flex flex-col shrink-0">
+      <div className="bg-bg-main/80 backdrop-blur-3xl border border-border-main rounded-[2rem] md:rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col md:flex-row overflow-hidden flex-1 md:h-[calc(100dvh-8rem)] min-h-0">
+        {/* Sidebar */}
+        <div className="w-full md:w-72 bg-bg-card/30 border-b md:border-b-0 md:border-r border-border-main flex flex-col shrink-0 z-10 overflow-x-auto md:overflow-x-visible">
+          <nav className="p-4 md:p-6 space-x-2 md:space-x-0 md:space-y-1 flex md:flex-col shrink-0 overflow-x-auto no-scrollbar">
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group shrink-0 ${
                   activeTab === tab.id 
                     ? 'bg-text-main text-bg-main shadow-xl scale-[1.02]' 
                     : 'text-text-muted hover:bg-bg-card/50 hover:text-text-main'
                 }`}
               >
                 <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-bg-main' : 'text-text-muted group-hover:text-text-main'}`} />
-                <span className="text-sm font-bold tracking-tight">{tab.label}</span>
+                <span className="text-sm font-bold tracking-tight whitespace-nowrap">{tab.label}</span>
                 {activeTab === tab.id && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-bg-main" />
+                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-bg-main hidden md:block" />
                 )}
               </button>
             ))}
           </nav>
 
-          <div className="p-6 border-t border-border-main mt-auto">
+          <div className="p-6 border-t border-border-main mt-auto hidden md:block">
+            <button 
+              onClick={handleSaveAndBack}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-bg-accent text-white rounded-2xl text-sm font-bold shadow-xl shadow-bg-accent/20 hover:opacity-90 transition-all active:scale-95 mb-4"
+            >
+              <Save className="w-4 h-4" />
+              保存并返回
+            </button>
             <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${saved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-bg-card/50 text-text-muted'}`}>
               <div className={`w-1.5 h-1.5 rounded-full ${saved ? 'bg-emerald-500 animate-pulse' : 'bg-text-muted/30'}`} />
               {saved ? 'Auto-Saved' : 'Ready'}
@@ -373,7 +399,7 @@ export default function Settings() {
 
         {/* Content Area */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-bg-main/20 relative">
-          <div className="flex-1 md:overflow-y-auto p-6 md:p-10 custom-scrollbar overscroll-contain">
+          <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar overscroll-contain">
             {activeTab === 'theme' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center gap-3">
@@ -389,6 +415,9 @@ export default function Settings() {
                     { id: 'day', label: '简约蓝白', icon: Sun, desc: '清爽蓝白设计，简约而不简单', color: 'bg-white' },
                     { id: 'night', label: '幻彩紫夜', icon: Palette, desc: '迷人渐变紫，科技感十足', color: 'bg-[#0f0c29]' },
                     { id: 'girl', label: '甜美粉红', icon: Sparkles, desc: '温馨少女粉，甜美可爱', color: 'bg-[#fff1f2]' },
+                    { id: 'sunset', label: '日落余晖', icon: Sun, desc: '温暖橙黄，如沐夕阳', color: 'bg-[#fff7ed]' },
+                    { id: 'ocean', label: '蔚蓝海洋', icon: Palette, desc: '深邃海蓝，心旷神怡', color: 'bg-[#f0f9ff]' },
+                    { id: 'forest', label: '森之呼吸', icon: Sparkles, desc: '清新翠绿，自然气息', color: 'bg-[#f0fdf4]' },
                   ].map((t) => (
                     <button
                       key={t.id}
@@ -418,149 +447,106 @@ export default function Settings() {
             )}
 
             {activeTab === 'source' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between gap-4 p-5 bg-bg-card/20 border border-border-main rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-bg-accent/10 rounded-xl shrink-0">
-                      <Database className="w-5 h-5 text-bg-accent" />
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-bg-card/50 rounded-xl">
+                      <Rss className="w-5 h-5 text-text-main" />
                     </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-text-main tracking-tight">全量采集源</h3>
-                      <p className="text-xs text-text-muted mt-0.5 leading-tight">加载全部 80+ 采集源，关闭则仅加载 10+ 精简源以提升效率</p>
-                    </div>
+                    <h2 className="text-xl font-bold text-text-main tracking-tight">订阅源管理</h2>
                   </div>
-                  <button
-                    onClick={() => setUseFullSourcesState(!useFullSourcesState)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      useFullSourcesState ? 'bg-bg-accent' : 'bg-bg-card'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        useFullSourcesState ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={handleDeepTestAll}
+                      disabled={deepTesting}
+                      className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
+                    >
+                      {deepTesting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                      {deepTesting ? deepTestProgress || '测速中...' : '深度测速'}
+                    </button>
+                    <button
+                      onClick={handleAutoSelect}
+                      disabled={testingSpeed}
+                      className="px-4 py-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2"
+                    >
+                      {testingSpeed ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                      {testingSpeed ? '测速中...' : '快速选取'}
+                    </button>
+                  </div>
                 </div>
 
-                <ConfigSection
-                  title="订阅源管理"
-                  icon={Rss}
-                  items={sourcesState}
-                  activeId={activeSourceIdState}
-                  onSetActive={setActiveSourceIdState}
-                  onAdd={(name, url) => setSourcesState(prev => [...prev, { id: Date.now().toString(), name, url }])}
-                  onDelete={(id) => {
-                    setSourcesState(prev => prev.filter(s => s.id !== id));
-                    if (activeSourceIdState === id) setActiveSourceIdState('default');
-                  }}
-                  namePlaceholder="源名称 (如: 卧龙资源)"
-                  urlPlaceholder="接口地址 (需支持 JSON)"
-                  extraActions={
-                    <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
-                      <button
-                        onClick={handleDeepTestAll}
-                        disabled={deepTesting}
-                        className="px-4 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2 justify-center"
-                      >
-                        {deepTesting ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Zap className="w-3.5 h-3.5" />
-                        )}
-                        {deepTesting ? deepTestProgress || '深度测速中...' : '深度测速'}
-                      </button>
-                      <button
-                        onClick={handleAutoSelect}
-                        disabled={testingSpeed}
-                        className="px-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2 justify-center"
-                      >
-                        {testingSpeed ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Zap className="w-3.5 h-3.5" />
-                        )}
-                        {testingSpeed ? '测速中...' : '快速选取'}
-                      </button>
-                      <button
-                        onClick={() => handleSync('jin18')}
-                        disabled={syncing}
-                        className="px-4 bg-bg-card/50 text-text-main border border-border-main rounded-xl hover:bg-bg-card transition-all disabled:opacity-50 text-xs font-bold flex items-center gap-2 justify-center"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                        精简同步
-                      </button>
-                      <button
-                        onClick={() => handleSync('full')}
-                        disabled={syncing}
-                        className="px-4 bg-bg-card text-text-muted border border-border-main rounded-xl hover:bg-bg-card/80 hover:text-text-main transition-all disabled:opacity-50 text-xs font-bold justify-center"
-                      >
-                        全量
-                      </button>
-                    </div>
-                  }
-                  description={
-                    <div className="flex items-start gap-4 p-4 bg-bg-card/20 border border-border-main rounded-2xl text-text-muted text-xs leading-relaxed">
-                      <Info className="w-4 h-4 shrink-0 text-text-muted/50 mt-0.5" />
-                      <p>
-                        自定义源将覆盖默认源。接口需支持 JSON 格式，推荐在地址末尾添加 <code className="text-text-main bg-bg-card/50 px-1.5 py-0.5 rounded">/at/json</code>。
-                      </p>
-                    </div>
-                  }
-                />
+                <div className="grid grid-cols-1 gap-2">
+                  {sourcesState.map(item => (
+                    <ConfigItemRow 
+                      key={item.id} 
+                      item={item} 
+                      activeId={activeSourceIdState} 
+                      onSetActive={setActiveSourceIdState} 
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-start gap-4 p-4 bg-bg-card/20 border border-border-main rounded-2xl text-text-muted text-xs leading-relaxed">
+                  <Info className="w-4 h-4 shrink-0 text-text-muted/50 mt-0.5" />
+                  <p>
+                    系统已为您预设了优质的采集源。您可以使用“深度测速”自动选取当前网络环境下最快的线路。
+                  </p>
+                </div>
               </div>
             )}
 
             {activeTab === 'cors' && (
-              <ConfigSection
-                title="CORS 代理设置"
-                icon={Shield}
-                items={corsProxiesState}
-                activeId={activeCorsIdState}
-                onSetActive={setActiveCorsIdState}
-                onAdd={(name, url) => setCorsProxiesState([...corsProxiesState, { id: Date.now().toString(), name, url }])}
-                onDelete={(id) => {
-                  setCorsProxiesState(corsProxiesState.filter(p => p.id !== id));
-                  if (activeCorsIdState === id) setActiveCorsIdState('default');
-                }}
-                namePlaceholder="代理名称"
-                urlPlaceholder="代理地址 (需以 ?url= 结尾)"
-                allowEmptyUrl={true}
-                description={
-                  <div className="flex items-start gap-4 p-4 bg-bg-card/20 border border-border-main rounded-2xl text-text-muted text-xs leading-relaxed">
-                    <Info className="w-4 h-4 shrink-0 text-text-muted/50 mt-0.5" />
-                    <p>
-                      解决跨域请求拦截问题。若接口请求失败，请尝试切换代理或使用“直连”。
-                    </p>
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-bg-card/50 rounded-xl">
+                    <Shield className="w-5 h-5 text-text-main" />
                   </div>
-                }
-              />
+                  <h2 className="text-xl font-bold text-text-main tracking-tight">CORS 代理设置</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {corsProxiesState.map(item => (
+                    <ConfigItemRow 
+                      key={item.id} 
+                      item={item} 
+                      activeId={activeCorsIdState} 
+                      onSetActive={setActiveCorsIdState} 
+                    />
+                  ))}
+                </div>
+                <div className="flex items-start gap-4 p-4 bg-bg-card/20 border border-border-main rounded-2xl text-text-muted text-xs leading-relaxed">
+                  <Info className="w-4 h-4 shrink-0 text-text-muted/50 mt-0.5" />
+                  <p>
+                    解决跨域请求拦截问题。若接口请求失败，请尝试切换代理或使用“直连”。
+                  </p>
+                </div>
+              </div>
             )}
 
             {activeTab === 'player' && (
-              <ConfigSection
-                title="播放器与解析"
-                icon={PlayCircle}
-                items={playersState}
-                activeId={activePlayerIdState}
-                onSetActive={setActivePlayerIdState}
-                onAdd={(name, url) => setPlayersState([...playersState, { id: Date.now().toString(), name, url }])}
-                onDelete={(id) => {
-                  setPlayersState(playersState.filter(p => p.id !== id));
-                  if (activePlayerIdState === id) setActivePlayerIdState('default');
-                }}
-                namePlaceholder="播放器名称"
-                urlPlaceholder="解析接口地址"
-                allowEmptyUrl={true}
-                description={
-                  <div className="flex items-start gap-4 p-4 bg-bg-card/20 border border-border-main rounded-2xl text-text-muted text-xs leading-relaxed">
-                    <Info className="w-4 h-4 shrink-0 text-text-muted/50 mt-0.5" />
-                    <p>
-                      支持第三方解析接口。系统将通过 iframe 嵌套方式调用外部播放器。
-                    </p>
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-bg-card/50 rounded-xl">
+                    <PlayCircle className="w-5 h-5 text-text-main" />
                   </div>
-                }
-              />
+                  <h2 className="text-xl font-bold text-text-main tracking-tight">播放器与解析</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {playersState.map(item => (
+                    <ConfigItemRow 
+                      key={item.id} 
+                      item={item} 
+                      activeId={activePlayerIdState} 
+                      onSetActive={setActivePlayerIdState} 
+                    />
+                  ))}
+                </div>
+                <div className="flex items-start gap-4 p-4 bg-bg-card/20 border border-border-main rounded-2xl text-text-muted text-xs leading-relaxed">
+                  <Info className="w-4 h-4 shrink-0 text-text-muted/50 mt-0.5" />
+                  <p>
+                    支持第三方解析接口。系统将通过 iframe 嵌套方式调用外部播放器。
+                  </p>
+                </div>
+              </div>
             )}
 
             {activeTab === 'storage' && (

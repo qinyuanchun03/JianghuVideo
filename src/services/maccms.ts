@@ -130,44 +130,40 @@ const testSource = DEFAULT_SOURCES.find(s => s.id === 'testSource');
 if (testSource) LITE_SOURCES.push(testSource);
 
 const DEFAULT_CORS: ConfigItem[] = [
-  { id: 'default', name: '内置代理 (推荐)', url: 'https://video-api.250221.xyz/?url=' },
-  { id: 'shunt', name: '分流代理 (备用)', url: 'https://corsproxy.io/?' },
+  { id: 'default', name: 'CF-CDN1 (默认)', url: 'https://video-api.250221.xyz/?url=' },
+  { id: 'cf-cdn2', name: 'CF-CDN2', url: 'https://cros.takaosakuma.dpdns.org/?url=' },
   { id: 'none', name: '直连 (无代理)', url: '' }
 ];
 
 const DEFAULT_PLAYERS: ConfigItem[] = [
-  { id: 'default', name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' },
-  { id: 'dbzy99', name: 'DBZY99 播放器', url: 'https://dbzy99.com:699/?url=' },
-  { id: 'dplayer', name: '内置 ArtPlayer/HLS', url: '' }
+  { id: 'default', name: '内置 ArtPlayer/HLS', url: '' },
+  { id: 'ikun', name: 'iKun 播放器', url: 'https://www.ikundmjx.com/?url=' },
+  { id: 'dbzy99', name: 'DBZY99 播放器', url: 'https://dbzy99.com:699/?url=' }
 ];
 
 export const getSources = (): ConfigItem[] => {
-  const saved = storage.get('maccms_sources');
-  // Return empty array if no custom sources saved, so Settings starts clean
-  return Array.isArray(saved) ? saved : [];
+  return []; // No longer support custom sources
 };
 
 export const getEffectiveSources = (): ConfigItem[] => {
-  const sources = getSources();
   const useFull = storage.get('maccms_use_full_sources') === true;
-  const baseSources = (Array.isArray(sources) && sources.length > 0) ? sources : (useFull ? DEFAULT_SOURCES : LITE_SOURCES);
+  const baseSources = useFull ? DEFAULT_SOURCES : LITE_SOURCES;
   
-  // Migration: Fix mangled URLs that have &at=json without a ?
+  // Migration: Fix mangled URLs and ensure JSON format
   return baseSources.map(s => {
-    if (s.url.includes('&at=json') && !s.url.includes('?')) {
-      return { ...s, url: s.url.replace('&at=json', '/at/json') };
+    let url = s.url;
+    if (url.includes('&at=json') && !url.includes('?')) {
+      url = url.replace('&at=json', '/at/json');
     }
-    // Also fix double query markers if any
-    if (s.url.includes('?at=json?')) {
-      return { ...s, url: s.url.replace('?at=json?', '?at=json&') };
+    if (url.includes('?at=json?')) {
+      url = url.replace('?at=json?', '?at=json&');
     }
-    return s;
+    return { ...s, url };
   });
 };
 
-export const setSources = (sources: ConfigItem[]) => {
-  storage.set('maccms_sources', sources);
-  window.dispatchEvent(new Event('maccms_settings_changed'));
+export const setSources = (_sources: ConfigItem[]) => {
+  // No-op: No longer support custom sources
 };
 export const getActiveSourceId = () => storage.get('maccms_active_source_id') || 'default';
 export const setActiveSourceId = (id: string) => {
@@ -186,27 +182,10 @@ export const getApiUrl = (sourceId?: string) => {
 };
 
 export const getCorsProxies = (): ConfigItem[] => {
-  const saved = storage.get('maccms_cors_proxies');
-  if (!Array.isArray(saved)) return DEFAULT_CORS;
-  
-  try {
-    const proxies: ConfigItem[] = saved;
-    // Migration: remove failing Takao proxy and update default if needed
-    return proxies
-      .filter(p => p.id !== 'takao')
-      .map(p => {
-        if (p.id === 'default' && (p.url.includes('takaosakuma.dpdns.org') || p.url === '/api/proxy?url=' || !p.url)) {
-          return DEFAULT_CORS[0];
-        }
-        return p;
-      });
-  } catch (e) {
-    return DEFAULT_CORS;
-  }
+  return DEFAULT_CORS;
 };
-export const setCorsProxies = (proxies: ConfigItem[]) => {
-  storage.set('maccms_cors_proxies', proxies);
-  window.dispatchEvent(new Event('maccms_settings_changed'));
+export const setCorsProxies = (_proxies: ConfigItem[]) => {
+  // No-op: No longer support custom proxies
 };
 export const getActiveCorsId = () => storage.get('maccms_active_cors_id') || 'default';
 export const setActiveCorsId = (id: string) => {
@@ -223,33 +202,10 @@ export const getCorsProxyUrl = () => {
 };
 
 export const getPlayers = (): ConfigItem[] => {
-  const saved = storage.get('maccms_players');
-  if (!Array.isArray(saved)) return DEFAULT_PLAYERS;
-  
-  // Migration: Swap default and ikun URLs so default is ikun
-  const players = saved.map(p => {
-    if (p.id === 'default' && (p.url === '' || !p.url)) {
-      return { ...p, name: 'iKun 播放器 (默认)', url: 'https://www.ikundmjx.com/?url=' };
-    }
-    if (p.id === 'dplayer' || (p.id === 'ikun' && p.url === 'https://www.ikundmjx.com/?url=')) {
-      return { ...p, id: 'dplayer', name: '内置 ArtPlayer/HLS', url: '' };
-    }
-    return p;
-  });
-
-  // Inject dbzy99 if missing
-  if (!players.find(p => p.id === 'dbzy99')) {
-    const dbzy99 = DEFAULT_PLAYERS.find(p => p.id === 'dbzy99');
-    if (dbzy99) {
-      players.splice(1, 0, dbzy99);
-    }
-  }
-
-  return players;
+  return DEFAULT_PLAYERS;
 };
-export const setPlayers = (players: ConfigItem[]) => {
-  storage.set('maccms_players', players);
-  window.dispatchEvent(new Event('maccms_settings_changed'));
+export const setPlayers = (_players: ConfigItem[]) => {
+  // No-op: No longer support custom players
 };
 export const getActivePlayerId = () => storage.get('maccms_active_player_id') || 'default';
 export const setActivePlayerId = (id: string) => {
@@ -301,16 +257,15 @@ async function _fetchMacCMS(params: Record<string, string | number>, sourceId?: 
 
   // 使用用户提供的 CORS 代理
   const corsProxy = getCorsProxyUrl();
+  const proxies = getCorsProxies();
+  const cfCdn1 = proxies.find(p => p.id === 'default')?.url || 'https://video-api.250221.xyz/?url=';
+  const cfCdn2 = proxies.find(p => p.id === 'cf-cdn2')?.url || 'https://cros.takaosakuma.dpdns.org/?url=';
   
   // If a global CORS proxy is set, use it. Otherwise, fallback to the built-in proxy if it existed.
-  const proxyToUse = corsProxy || builtInProxy;
+  const proxyToUse = corsProxy || builtInProxy || cfCdn1;
   
-  let proxyUrl = targetUrl.toString();
   const fallbackProxies = [
-    'https://corsproxy.io/?',
-    'https://api.allorigins.win/raw?url=',
-    'https://thingproxy.freeboard.io/fetch/',
-    'https://api.codetabs.com/v1/proxy?quest='
+    proxyToUse === cfCdn1 ? cfCdn2 : cfCdn1
   ];
 
   const getFullProxyUrl = (proxy: string, target: string) => {

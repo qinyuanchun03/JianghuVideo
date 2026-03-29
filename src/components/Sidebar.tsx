@@ -32,7 +32,7 @@ export const Sidebar: React.FC = () => {
         <div className="w-10 h-10 bg-bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-bg-accent/20">
           <PlayCircle className="text-white w-6 h-6" />
         </div>
-        <span className="text-xl font-bold tracking-tight text-text-main">V-Stream</span>
+        <span className="text-xl font-bold tracking-tight text-text-main">江湖影视</span>
       </div>
       
       <div className="space-y-8">

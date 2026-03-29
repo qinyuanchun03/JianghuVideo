@@ -14,14 +14,8 @@ const HistoryPage = lazy(() => import('./pages/History'));
 const FavoritesPage = lazy(() => import('./pages/Favorites'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 
-// Theme Context
-type Theme = 'dark' | 'day' | 'night' | 'girl';
-interface ThemeContextType {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
-}
-const ThemeContext = createContext<ThemeContextType>({ theme: 'dark', setTheme: () => {} });
-export const useTheme = () => useContext(ThemeContext);
+import { HomeProvider } from './contexts/HomeContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 
 function TopBar({ scrolled }: { scrolled: boolean }) {
   const location = useLocation();
@@ -68,12 +62,6 @@ function TopBar({ scrolled }: { scrolled: boolean }) {
 
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(false);
-  const [theme, setThemeState] = useState<Theme>((localStorage.getItem('app_theme') as Theme) || 'dark');
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem('app_theme', newTheme);
-  };
 
   useEffect(() => {
     const activeId = localStorage.getItem('maccms_active_source_id');
@@ -90,13 +78,6 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    document.documentElement.classList.remove('theme-day', 'theme-night', 'theme-girl');
-    if (theme !== 'dark') {
-      document.documentElement.classList.add(`theme-${theme}`);
-    }
-  }, [theme]);
-
   if (isInitializing) {
     return (
       <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-4">
@@ -109,11 +90,13 @@ export default function App() {
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      <Router>
-        <AppLayout />
-      </Router>
-    </ThemeContext.Provider>
+    <ThemeProvider>
+      <HomeProvider>
+        <Router>
+          <AppLayout />
+        </Router>
+      </HomeProvider>
+    </ThemeProvider>
   );
 }
 

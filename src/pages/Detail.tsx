@@ -276,7 +276,7 @@ export default function Detail() {
                 <div className="sm:rounded-xl overflow-hidden">
                   <VideoPlayer 
                     key={activeEpisode.url} 
-                    url={`/api/proxy/m3u8?url=${encodeURIComponent(activeEpisode.url)}`} 
+                    url={activeEpisode.url} 
                     poster={video.vod_pic}
                     initialProgress={initialProgress}
                     onProgress={handleProgress}

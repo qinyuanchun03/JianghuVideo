@@ -5,6 +5,8 @@ import { getVideos, getCategories, searchAllSources, getVideoDetail } from '../s
 import { MacCMSVideo, MacCMSCategory } from '../types';
 import { getHistory, getFavorites, isUserLoggedIn } from '../services/pocketbase';
 
+import { useHome } from '../contexts/HomeContext';
+
 const VideoCard: React.FC<{ video: MacCMSVideo }> = ({ video }) => (
   <Link 
     to={`/video/${video.vod_id}${video.source_id ? `?source=${video.source_id}` : ''}`}
@@ -49,47 +51,72 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
   
-  const [categories, setCategories] = useState<MacCMSCategory[]>([]);
+  const {
+    categories, setCategories,
+    groupedVideos, setGroupedVideos,
+    featuredVideo, setFeaturedVideo,
+    recommendedVideos, setRecommendedVideos,
+    gridVideos, setGridVideos,
+    activeCategory, setActiveCategory,
+    page, setPage,
+    hasMore, setHasMore,
+    isInitialized, setIsInitialized,
+    scrollPosition, setScrollPosition
+  } = useHome();
+
   const [error, setError] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<number | undefined>();
   const [settingsVersion, setSettingsVersion] = useState(0);
   
   // Home Mode State (Carousel)
-  const [groupedVideos, setGroupedVideos] = useState<Record<string, MacCMSVideo[]>>({});
-  const [featuredVideo, setFeaturedVideo] = useState<MacCMSVideo | null>(null);
-  const [isHomeLoading, setIsHomeLoading] = useState(true);
+  const [isHomeLoading, setIsHomeLoading] = useState(!isInitialized);
 
   // Grid Mode State
-  const [gridVideos, setGridVideos] = useState<MacCMSVideo[]>([]);
   const [gridLoading, setGridLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
 
   // Recommendations State
-  const [recommendedVideos, setRecommendedVideos] = useState<MacCMSVideo[]>([]);
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false);
 
   const isHomeMode = !activeCategory && !searchQuery;
 
+  // Restore scroll position
+  useEffect(() => {
+    const mainElement = document.querySelector('main');
+    if (mainElement && isInitialized) {
+      mainElement.scrollTop = scrollPosition;
+    }
+  }, [isInitialized]);
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    const mainElement = document.querySelector('main');
+    return () => {
+      if (mainElement) {
+        setScrollPosition(mainElement.scrollTop);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const handleSettingsChange = () => {
       setSettingsVersion(v => v + 1);
+      setIsInitialized(false); // Force re-init on settings change
     };
     window.addEventListener('maccms_settings_changed', handleSettingsChange);
     return () => window.removeEventListener('maccms_settings_changed', handleSettingsChange);
   }, []);
 
   useEffect(() => {
+    if (categories.length > 0 && isInitialized) return;
     getCategories()
       .then(cats => {
         if (cats) setCategories(cats);
       })
       .catch(console.error);
-  }, [settingsVersion]);
+  }, [settingsVersion, isInitialized]);
 
   // Fetch Recommendations
   useEffect(() => {
-    if (!isHomeMode || !isUserLoggedIn()) return;
+    if (!isHomeMode || !isUserLoggedIn() || (recommendedVideos.length > 0 && isInitialized)) return;
     
     let isMounted = true;
     setIsRecommendationsLoading(true);
@@ -148,11 +175,14 @@ export default function Home() {
     fetchRecommendations();
     
     return () => { isMounted = false; };
-  }, [isHomeMode, settingsVersion]);
+  }, [isHomeMode, settingsVersion, isInitialized]);
 
   // Fetch for Home Mode
   useEffect(() => {
-    if (!isHomeMode) return;
+    if (!isHomeMode || (isInitialized && Object.keys(groupedVideos).length > 0)) {
+      if (isHomeMode) setIsHomeLoading(false);
+      return;
+    }
     let isMounted = true;
     setIsHomeLoading(true);
 
@@ -173,6 +203,7 @@ export default function Home() {
           groups[v.type_name].push(v);
         });
         setGroupedVideos(groups);
+        setIsInitialized(true);
       })
       .catch(err => {
         if (isMounted) setError(err.message);
@@ -182,7 +213,7 @@ export default function Home() {
       });
 
     return () => { isMounted = false; };
-  }, [isHomeMode, settingsVersion]);
+  }, [isHomeMode, settingsVersion, isInitialized]);
 
   // Fetch for Grid Mode
   useEffect(() => {
